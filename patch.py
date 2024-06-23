@@ -436,8 +436,7 @@ def inject_custota(
         # Add SELinux rules.
         with tempfile.NamedTemporaryFile(delete_on_close=False) as f_temp:
             with (
-                z.open(apk, 'r') as f_apk,
-                zipfile.ZipFile(f_apk, 'r') as z_apk,
+                zipfile.ZipFile(tree / apk, 'r') as z_apk,
                 z_apk.open(f'lib/{abi}/libcustota_selinux.so', 'r') as f_exe,
             ):
                 shutil.copyfileobj(f_exe, f_temp)
