@@ -408,14 +408,25 @@ def inject_custota(
 
     status(f'Injecting Custota: {module_zip}')
 
-    with zipfile.ZipFile(module_zip, 'r') as z:
-        apk = None
+    with (
+        zipfile.ZipFile(module_zip, 'r') as z,
+        tempfile.NamedTemporaryFile(delete_on_close=False) as f_temp,
+    ):
+        arch = platform.machine()
+        if arch == 'arm64':
+            abi = 'arm64-v8a'
+        else:
+            abi = arch
 
         for path in z.namelist():
+            if path == f'custota-selinux.{abi}':
+                with z.open(path) as f_exe:
+                    shutil.copyfileobj(f_exe, f_temp)
+                os.fchmod(f_temp.fileno(), 0o700)
+                f_temp.close()
+
             if not path.endswith('.apk') and not path.endswith('.xml'):
                 continue
-            elif path.endswith('.apk'):
-                apk = path
 
             # Add to filesystem entries.
             add_file_entry(entries, contexts, f'/{path}', 0o644)
@@ -425,33 +436,17 @@ def inject_custota(
             tree_path.parent.mkdir(parents=True, exist_ok=True)
             zip_extract(z, path, tree_path)
 
-        assert apk
-
-        arch = platform.machine()
-        if arch == 'arm64':
-            abi = 'arm64-v8a'
-        else:
-            abi = arch
+        assert f_temp.closed
 
         # Add SELinux rules.
-        with tempfile.NamedTemporaryFile(delete_on_close=False) as f_temp:
-            with (
-                zipfile.ZipFile(tree / apk, 'r') as z_apk,
-                z_apk.open(f'lib/{abi}/libcustota_selinux.so', 'r') as f_exe,
-            ):
-                shutil.copyfileobj(f_exe, f_temp)
-                os.fchmod(f_temp.fileno(), 0o700)
+        for sepolicy in sepolicies:
+            status(f'Adding Custota SELinux rules: {sepolicy}')
 
-            f_temp.close()
-
-            for sepolicy in sepolicies:
-                status(f'Adding Custota SELinux rules: {sepolicy}')
-
-                subprocess.check_call([
-                    f_temp.name,
-                    '--source', sepolicy,
-                    '--target', sepolicy,
-                ])
+            subprocess.check_call([
+                f_temp.name,
+                '--source', sepolicy,
+                '--target', sepolicy,
+            ])
 
     seapp = tree / 'system' / 'etc' / 'selinux' / 'plat_seapp_contexts'
     status(f'Adding Custota seapp context: {seapp}')
