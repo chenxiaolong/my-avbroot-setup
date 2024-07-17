@@ -296,7 +296,10 @@ class InitScript:
     name: str
     command: list[str]
     class_: str | None = None
+    user: str | None = None
+    group: str | None = None
     seclabel: str | None = None
+    capabilities: list[str] = dataclasses.field(default_factory=list)
     env: dict[str, str] = dataclasses.field(default_factory=dict)
     condition: str | None = None
     blocking: bool = False
@@ -334,8 +337,18 @@ class InitScript:
         if self.class_:
             lines.append(f'    class {self._escape(self.class_)}')
 
+        if self.user:
+            lines.append(f'    user {self._escape(self.user)}')
+
+        if self.group:
+            lines.append(f'    group {self._escape(self.group)}')
+
         if self.seclabel:
             lines.append(f'    seclabel {self._escape(self.seclabel)}')
+
+        if self.capabilities:
+            caps_escaped = ' '.join(self._escape(c) for c in self.capabilities)
+            lines.append(f'    capabilities {caps_escaped}')
 
         for k, v in self.env.items():
             lines.append(f'    setenv {self._escape(k)} {self._escape(v)}')
@@ -460,6 +473,99 @@ def inject_custota(
             'type=app_data_file '
             'levelFrom=all\n'
         )
+
+
+def inject_msd(
+    module_zip: Path,
+    module_sig: Path,
+    entries: list,
+    tree: Path,
+    contexts: Contexts,
+    sepolicies: Iterable[Path],
+):
+    verify_ssh_sig(module_zip, module_sig, SSH_PUBLIC_KEY_CHENXIAOLONG)
+
+    status(f'Injecting MSD: {module_zip}')
+
+    with (
+        zipfile.ZipFile(module_zip, 'r') as z,
+        tempfile.NamedTemporaryFile(delete_on_close=False) as f_temp,
+    ):
+        arch = platform.machine()
+        if arch == 'arm64':
+            abi = 'arm64-v8a'
+        else:
+            abi = arch
+
+        for path in z.namelist():
+            if path == f'msd-tool.{abi}':
+                with z.open(path) as f_exe:
+                    shutil.copyfileobj(f_exe, f_temp)
+                os.fchmod(f_temp.fileno(), 0o700)
+                f_temp.close()
+
+            if path == 'msd-tool.arm64-v8a':
+                dest_path = 'system/bin/msd-tool'
+                perms = 0o755
+            elif path.endswith('.apk'):
+                dest_path = path
+                perms = 0o644
+            else:
+                continue
+
+            # Add to filesystem entries.
+            add_file_entry(entries, contexts, f'/{dest_path}', perms)
+
+            # Extract file contents.
+            tree_path = tree / dest_path
+            tree_path.parent.mkdir(parents=True, exist_ok=True)
+            zip_extract(z, path, tree_path)
+
+        assert f_temp.closed
+
+        # Add SELinux rules.
+        for sepolicy in sepolicies:
+            status(f'Adding MSD SELinux rules: {sepolicy}')
+
+            subprocess.check_call([
+                f_temp.name,
+                'sepatch',
+                '--source', sepolicy,
+                '--target', sepolicy,
+            ])
+
+    seapp = tree / 'system' / 'etc' / 'selinux' / 'plat_seapp_contexts'
+    status(f'Adding MSD seapp context: {seapp}')
+
+    with open(seapp, 'a') as f_temp:
+        f_temp.write(
+            'user=_app '
+            'isPrivApp=true '
+            'name=com.chiller3.msd '
+            'domain=msd_app '
+            'type=app_data_file '
+            'levelFrom=all\n'
+        )
+
+    add_init_script(
+        InitScript(
+            name='msd_daemon',
+            command=[
+                '/system/bin/msd-tool',
+                'daemon',
+                '--log-target', 'logcat',
+                '--log-level', 'debug',
+            ],
+            class_='main',
+            user='system',
+            group='system',
+            seclabel='u:r:msd_daemon:s0',
+            capabilities=['CHOWN'],
+        ),
+        entries,
+        tree,
+        contexts,
+    )
 
 
 def inject_bcr(
@@ -671,17 +777,6 @@ def parse_args():
         help='OTA certificate for signing output OTA',
     )
     parser.add_argument(
-        '--module-bcr',
-        type=Path,
-        required=True,
-        help='BCR module zip',
-    )
-    parser.add_argument(
-        '--module-bcr-sig',
-        type=Path,
-        help='BCR module zip signature',
-    )
-    parser.add_argument(
         '--module-custota',
         type=Path,
         required=True,
@@ -691,6 +786,28 @@ def parse_args():
         '--module-custota-sig',
         type=Path,
         help='Custota module zip signature',
+    )
+    parser.add_argument(
+        '--module-msd',
+        type=Path,
+        required=True,
+        help='MSD module zip',
+    )
+    parser.add_argument(
+        '--module-msd-sig',
+        type=Path,
+        help='MSD module zip signature',
+    )
+    parser.add_argument(
+        '--module-bcr',
+        type=Path,
+        required=True,
+        help='BCR module zip',
+    )
+    parser.add_argument(
+        '--module-bcr-sig',
+        type=Path,
+        help='BCR module zip signature',
     )
     parser.add_argument(
         '--module-oemunlockonboot',
@@ -724,10 +841,12 @@ def parse_args():
 
     if args.output is None:
         args.output = Path(f'{args.input}.patched')
-    if args.module_bcr_sig is None:
-        args.module_bcr_sig = Path(f'{args.module_bcr}.sig')
     if args.module_custota_sig is None:
         args.module_custota_sig = Path(f'{args.module_custota}.sig')
+    if args.module_msd_sig is None:
+        args.module_msd_sig = Path(f'{args.module_msd}.sig')
+    if args.module_bcr_sig is None:
+        args.module_bcr_sig = Path(f'{args.module_bcr}.sig')
     if args.module_oemunlockonboot_sig is None:
         args.module_oemunlockonboot_sig = \
             Path(f'{args.module_oemunlockonboot}.sig')
@@ -786,6 +905,15 @@ def run(args: argparse.Namespace, temp_dir: Path):
     unpack_boot(vendor_boot_raw, vendor_boot_dir)
     unpack_cpio(vendor_boot_ramdisk, vendor_boot_dir)
 
+    # We only update the precompiled policies and leave the CIL policies alone.
+    # Since we're starting from a (hopefully) properly built Android build, we
+    # should never run into a situation where the precompiled sepolicy is out of
+    # date and needs to be recompiled from the CIL files during boot.
+    selinux_policies = [
+        vendor_tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
+        vendor_boot_tree / 'sepolicy',
+    ]
+
     # Inject modules.
     inject_custota(
         args.module_custota,
@@ -793,15 +921,15 @@ def run(args: argparse.Namespace, temp_dir: Path):
         system_fs_info['entries'],
         system_tree,
         system_contexts,
-        # We only update the precompiled policies and leave the CIL policies
-        # alone. Since we're starting from a (hopefully) properly built Android
-        # build, we should never run into a situation where the precompiled
-        # sepolicy is out of date and needs to be recompiled from the CIL files
-        # during boot.
-        [
-            vendor_tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
-            vendor_boot_tree / 'sepolicy',
-        ],
+        selinux_policies,
+    )
+    inject_msd(
+        args.module_msd,
+        args.module_msd_sig,
+        system_fs_info['entries'],
+        system_tree,
+        system_contexts,
+        selinux_policies,
     )
     inject_bcr(
         args.module_bcr,
