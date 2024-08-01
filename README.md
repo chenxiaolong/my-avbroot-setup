@@ -33,6 +33,7 @@ python3 patch.py \
     --sign-key-ota sign_ota.key \
     --sign-cert-ota sign_cert.key \
     --module-custota Custota-<version>-release.zip \
+    --module-msd MSD-<version>-release.zip \
     --module-bcr BCR-<version>-release.zip \
     --module-oemunlockonboot OEMUnlockOnBoot-<version>-release.zip \
     --module-alterinstaller AlterInstaller-<version>-release.zip
