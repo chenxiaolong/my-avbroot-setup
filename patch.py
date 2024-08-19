@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import tomlkit
-from typing import assert_never, Iterable, Match, Pattern, Tuple
+from typing import assert_never, Iterable, Match, Pattern, Tuple, Optional
 import zipfile
 
 
@@ -67,6 +67,8 @@ def patch_ota(
     key_ota: Path,
     cert_ota: Path,
     replace: dict[str, Path],
+    pass_avb: Optional[str] = None,
+    pass_ota: Optional[str] = None,
 ):
     image_names = ', '.join(sorted(replace.keys()))
     status(f'Patching OTA with replaced images: {image_names}: {output_ota}')
