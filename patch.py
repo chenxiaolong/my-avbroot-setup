@@ -83,6 +83,13 @@ def patch_ota(
         '--rootless',
     ]
 
+    if pass_avb is not None:
+        cmd.append('--pass-avb-env-var')
+        cmd.append(pass_avb)
+    if pass_ota is not None:
+        cmd.append('--pass-ota-env-var')
+        cmd.append(pass_ota)
+
     for k, v in replace.items():
         cmd.append('--replace')
         cmd.append(k)
