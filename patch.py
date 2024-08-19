@@ -69,6 +69,8 @@ def patch_ota(
     replace: dict[str, Path],
     pass_avb: Optional[str] = None,
     pass_ota: Optional[str] = None,
+    pass_avb_file: Optional[Path] = None,
+    pass_ota_file: Optional[Path] = None,
 ):
     image_names = ', '.join(sorted(replace.keys()))
     status(f'Patching OTA with replaced images: {image_names}: {output_ota}')
@@ -83,16 +85,19 @@ def patch_ota(
         '--rootless',
     ]
 
-    if pass_avb is None:
-        pass_avb = os.getenv('PASSPHRASE_AVB')
-        if pass_avb is not None:
-            cmd.append('--pass-avb-env-var')
-            cmd.append(pass_avb)
-    if pass_ota is None:
-        pass_ota = os.getenv('PASSPHRASE_OTA')
-        if pass_ota is not None:
-            cmd.append('--pass-ota-env-var')
-            cmd.append(pass_ota)
+    if pass_avb is not None:
+        cmd.append('--pass-avb-env-var')
+        cmd.append(pass_avb)
+    elif pass_avb_file is not None:
+        cmd.append('--pass-avb-file')
+        cmd.append(str(pass_avb_file))
+
+    if pass_ota is not None:
+        cmd.append('--pass-ota-env-var')
+        cmd.append(pass_ota)
+    elif pass_ota_file is not None:
+        cmd.append('--pass-ota-file')
+        cmd.append(str(pass_ota_file))
 
     for k, v in replace.items():
         cmd.append('--replace')
@@ -851,14 +856,24 @@ def parse_args():
         help='Spawn a debug shell before cleaning up temporary directory',
     )
     parser.add_argument(
-        '--pass-avb',
+        '--pass-avb-env-var',
         type=str,
         help='Private key passphrase for AVB signing. If not passed, the user will be prompted for the passphrase.',
     )
     parser.add_argument(
-        '--pass-ota',
+        '--pass-ota-env-var',
         type=str,
         help='Private key passphrase for OTA signing. If not passed, the user will be prompted for the passphrase.',
+    )
+    parser.add_argument(
+        '--pass-avb-file',
+        type=Path,
+        help='Private key file for AVB signing.',
+    )
+    parser.add_argument(
+        '--pass-ota-file',
+        type=Path,
+        help='Private key file for OTA signing.',
     )
 
     args = parser.parse_args()
@@ -999,13 +1014,15 @@ def run(args: argparse.Namespace, temp_dir: Path):
         args.sign_key_avb,
         args.sign_key_ota,
         args.sign_cert_ota,
-        args.pass_avb,
-        args.pass_ota,
         {
             'system': system_image,
             'vendor': vendor_image,
             'vendor_boot': vendor_boot_image,
         },
+        pass_avb=args.pass_avb_env_var,
+        pass_ota=args.pass_ota_env_var,
+        pass_avb_file=args.pass_avb_file,
+        pass_ota_file=args.pass_ota_file
     )
 
     # Generate Custota csig.
