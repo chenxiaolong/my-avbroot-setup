@@ -846,6 +846,16 @@ def parse_args():
         action='store_true',
         help='Spawn a debug shell before cleaning up temporary directory',
     )
+    parser.add_argument(
+        '--pass-avb',
+        type=str,
+        help='Private key passphrase for AVB signing. If not passed, the user will be prompted for the passphrase.',
+    )
+    parser.add_argument(
+        '--pass-ota',
+        type=str,
+        help='Private key passphrase for OTA signing. If not passed, the user will be prompted for the passphrase.',
+    )
 
     args = parser.parse_args()
 
@@ -985,6 +995,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
         args.sign_key_avb,
         args.sign_key_ota,
         args.sign_cert_ota,
+        args.pass_avb,
+        args.pass_ota,
         {
             'system': system_image,
             'vendor': vendor_image,
