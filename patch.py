@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import tomlkit
-from typing import assert_never, Iterable, Match, Pattern, Tuple, Optional
+from typing import assert_never, Iterable, Match, Pattern, Tuple
 import zipfile
 
 
@@ -67,10 +67,10 @@ def patch_ota(
     key_ota: Path,
     cert_ota: Path,
     replace: dict[str, Path],
-    pass_avb: Optional[str] = None,
-    pass_ota: Optional[str] = None,
-    pass_avb_file: Optional[Path] = None,
-    pass_ota_file: Optional[Path] = None,
+    pass_avb: str | None = None,
+    pass_ota: str | None = None,
+    pass_avb_file: str | None = None,
+    pass_ota_file: str | None = None,
 ):
     image_names = ', '.join(sorted(replace.keys()))
     status(f'Patching OTA with replaced images: {image_names}: {output_ota}')
@@ -90,14 +90,14 @@ def patch_ota(
         cmd.append(pass_avb)
     elif pass_avb_file is not None:
         cmd.append('--pass-avb-file')
-        cmd.append(str(pass_avb_file))
+        cmd.append(pass_avb_file)
 
     if pass_ota is not None:
         cmd.append('--pass-ota-env-var')
         cmd.append(pass_ota)
     elif pass_ota_file is not None:
         cmd.append('--pass-ota-file')
-        cmd.append(str(pass_ota_file))
+        cmd.append(pass_ota_file)
 
     for k, v in replace.items():
         cmd.append('--replace')
