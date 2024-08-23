@@ -90,14 +90,14 @@ def patch_ota(
         cmd.append(pass_avb)
     elif pass_avb_file is not None:
         cmd.append('--pass-avb-file')
-        cmd.append(Path(str(pass_avb_file)).read_text().strip())
+        cmd.append(str(pass_avb_file))
 
     if pass_ota is not None:
         cmd.append('--pass-ota-env-var')
         cmd.append(pass_ota)
     elif pass_ota_file is not None:
         cmd.append('--pass-ota-file')
-        cmd.append(Path(str(pass_ota_file)).read_text().strip())
+        cmd.append(str(pass_ota_file))
 
     for k, v in replace.items():
         cmd.append('--replace')
