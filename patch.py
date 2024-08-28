@@ -27,6 +27,13 @@ SSH_PUBLIC_KEY_CHENXIAOLONG = \
     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDOe6/tBnO7xZhAWXRj3ApUYgn+XZ0wnQiXM8B7tPgv4'
 
 
+@dataclasses.dataclass
+class SigningKey:
+    key: Path
+    pass_env: Path | None
+    pass_file: Path | None
+
+
 def status(*args, **kwargs):
     if 'file' not in kwargs:
         kwargs['file'] = sys.stderr
@@ -63,14 +70,10 @@ def unpack_ota(ota: Path, output_dir: Path, all: bool):
 def patch_ota(
     input_ota: Path,
     output_ota: Path,
-    key_avb: Path,
-    key_ota: Path,
+    key_avb: SigningKey,
+    key_ota: SigningKey,
     cert_ota: Path,
     replace: dict[str, Path],
-    pass_avb: str | None = None,
-    pass_ota: str | None = None,
-    pass_avb_file: str | None = None,
-    pass_ota_file: str | None = None,
 ):
     image_names = ', '.join(sorted(replace.keys()))
     status(f'Patching OTA with replaced images: {image_names}: {output_ota}')
@@ -79,25 +82,25 @@ def patch_ota(
         'avbroot', 'ota', 'patch',
         '--input', input_ota,
         '--output', output_ota,
-        '--key-avb', key_avb,
-        '--key-ota', key_ota,
+        '--key-avb', key_avb.key,
+        '--key-ota', key_ota.key,
         '--cert-ota', cert_ota,
         '--rootless',
     ]
 
-    if pass_avb is not None:
+    if key_avb.pass_env is not None:
         cmd.append('--pass-avb-env-var')
-        cmd.append(pass_avb)
-    elif pass_avb_file is not None:
+        cmd.append(key_avb.pass_env)
+    elif key_avb.pass_file is not None:
         cmd.append('--pass-avb-file')
-        cmd.append(pass_avb_file)
+        cmd.append(key_avb.pass_file)
 
-    if pass_ota is not None:
+    if key_ota.pass_env is not None:
         cmd.append('--pass-ota-env-var')
-        cmd.append(pass_ota)
-    elif pass_ota_file is not None:
+        cmd.append(key_ota.pass_env)
+    elif key_ota.pass_file is not None:
         cmd.append('--pass-ota-file')
-        cmd.append(pass_ota_file)
+        cmd.append(key_ota.pass_file)
 
     for k, v in replace.items():
         cmd.append('--replace')
@@ -117,15 +120,27 @@ def unpack_avb(image: Path, output_dir: Path):
     ], cwd=output_dir)
 
 
-def pack_avb(image: Path, input_dir: Path, key: Path, recompute_size: bool):
+def pack_avb(
+    image: Path,
+    input_dir: Path,
+    key: SigningKey,
+    recompute_size: bool,
+):
     status(f'Packing AVB image: {image}')
 
     cmd = [
         'avbroot', 'avb', 'pack',
         '--quiet',
         '--output', image.absolute(),
-        '--key', key,
+        '--key', key.key,
     ]
+
+    if key.pass_env is not None:
+        cmd.append('--pass-env-var')
+        cmd.append(key.pass_env)
+    elif key.pass_file is not None:
+        cmd.append('--pass-file')
+        cmd.append(key.pass_file)
 
     if recompute_size:
         cmd.append('--recompute-size')
@@ -191,15 +206,24 @@ def pack_fs(image: Path, input_dir: Path):
     ], cwd=input_dir)
 
 
-def generate_csig(ota: Path, key_ota: Path, cert_ota: Path):
+def generate_csig(ota: Path, key_ota: SigningKey, cert_ota: Path):
     status(f'Generating Custota csig: {ota}.csig')
 
-    subprocess.check_call([
+    cmd = [
         'custota-tool', 'gen-csig',
         '--input', ota,
-        '--key', key_ota,
+        '--key', key_ota.key,
         '--cert', cert_ota,
-    ])
+    ]
+
+    if key_ota.pass_env is not None:
+        cmd.append('--passphrase-env-var')
+        cmd.append(key_ota.pass_env)
+    elif key_ota.pass_file is not None:
+        cmd.append('--passphrase-file')
+        cmd.append(key_ota.pass_file)
+
+    subprocess.check_call(cmd)
 
 
 def get_ota_metadata(ota: Path) -> dict[str, str]:
@@ -858,22 +882,22 @@ def parse_args():
     parser.add_argument(
         '--pass-avb-env-var',
         type=str,
-        help='Private key passphrase for AVB signing. If not passed, the user will be prompted for the passphrase.',
+        help='Private key passphrase environment variable for AVB signing',
     )
     parser.add_argument(
         '--pass-ota-env-var',
         type=str,
-        help='Private key passphrase for OTA signing. If not passed, the user will be prompted for the passphrase.',
+        help='Private key passphrase environment variable for OTA signing',
     )
     parser.add_argument(
         '--pass-avb-file',
         type=Path,
-        help='Private key file for AVB signing.',
+        help='Private key passphrase file for AVB signing.',
     )
     parser.add_argument(
         '--pass-ota-file',
         type=Path,
-        help='Private key file for OTA signing.',
+        help='Private key passphrase file for OTA signing.',
     )
 
     args = parser.parse_args()
@@ -897,6 +921,17 @@ def parse_args():
 
 
 def run(args: argparse.Namespace, temp_dir: Path):
+    sign_key_avb = SigningKey(
+        args.sign_key_avb,
+        args.pass_avb_env_var,
+        args.pass_avb_file,
+    )
+    sign_key_ota = SigningKey(
+        args.sign_key_ota,
+        args.pass_ota_env_var,
+        args.pass_ota_file,
+    )
+
     images_dir = temp_dir / 'images'
 
     system_image = images_dir / 'system.img'
@@ -996,37 +1031,33 @@ def run(args: argparse.Namespace, temp_dir: Path):
     with open(system_metadata, 'w') as f:
         tomlkit.dump(system_fs_info, f)
     pack_fs(system_raw, system_dir)
-    pack_avb(system_image, system_dir, args.sign_key_avb, True)
+    pack_avb(system_image, system_dir, sign_key_avb, True)
 
     # Repack vendor image.
     pack_fs(vendor_raw, vendor_dir)
-    pack_avb(vendor_image, vendor_dir, args.sign_key_avb, True)
+    pack_avb(vendor_image, vendor_dir, sign_key_avb, True)
 
     # Repack vendor_boot image.
     pack_cpio(vendor_boot_ramdisk, vendor_boot_dir)
     pack_boot(vendor_boot_raw, vendor_boot_dir)
-    pack_avb(vendor_boot_image, vendor_boot_dir, args.sign_key_avb, False)
+    pack_avb(vendor_boot_image, vendor_boot_dir, sign_key_avb, False)
 
     # Patch OTA.
     patch_ota(
         args.input,
         args.output,
-        args.sign_key_avb,
-        args.sign_key_ota,
+        sign_key_avb,
+        sign_key_ota,
         args.sign_cert_ota,
         {
             'system': system_image,
             'vendor': vendor_image,
             'vendor_boot': vendor_boot_image,
         },
-        pass_avb=args.pass_avb_env_var,
-        pass_ota=args.pass_ota_env_var,
-        pass_avb_file=args.pass_avb_file,
-        pass_ota_file=args.pass_ota_file
     )
 
     # Generate Custota csig.
-    generate_csig(args.output, args.sign_key_ota, args.sign_cert_ota)
+    generate_csig(args.output, sign_key_ota, args.sign_cert_ota)
 
     # Generate Custota update-info.
     codename = get_ota_metadata(args.output)['pre-device']
