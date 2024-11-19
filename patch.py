@@ -1064,13 +1064,26 @@ def main():
     args = parse_args()
 
     with tempfile.TemporaryDirectory() as temp_dir:
+        exit_code = 0
+
         try:
             run(args, Path(temp_dir))
-        finally:
+        except Exception as e:
             if args.debug_shell:
-                shell = os.getenv('SHELL', 'bash')
-                status(f'Debug shell: {shell}')
-                subprocess.run([shell], cwd=temp_dir)
+                # Use default printer for pretty colors on Python 3.13.
+                if hasattr(traceback, '_print_exception_bltin'):
+                    traceback._print_exception_bltin(e)
+                else:
+                    traceback.print_exception(e)
+
+            exit_code = 1
+
+        if args.debug_shell:
+            shell = os.getenv('SHELL', 'bash')
+            status(f'Debug shell: {shell}')
+            subprocess.run([shell], cwd=temp_dir)
+
+        exit(exit_code)
 
 
 if __name__ == '__main__':
