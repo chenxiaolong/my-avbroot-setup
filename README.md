@@ -16,6 +16,7 @@ This repo includes the script I use for modifying Android OTAs. Folks should pro
 * [afsr](https://github.com/chenxiaolong/afsr) (>= commit adcae036b68684828edf5eb90be1500abd5cf491)
 * [Custota](https://github.com/chenxiaolong/Custota) (>= version 5.2)
 * [MSD](https://github.com/chenxiaolong/MSD) (>= version 1.8)
+* [ChargeLimit](https://github.com/chenxiaolong/ChargeLimit)
 * [BCR](https://github.com/chenxiaolong/BCR) (>= version 1.65)
 * [OEMUnlockOnBoot](https://github.com/chenxiaolong/OEMUnlockOnBoot) (>= version 1.1)
 * [AlterInstaller](https://github.com/chenxiaolong/AlterInstaller) (>= version 2.0)
@@ -34,6 +35,7 @@ python3 patch.py \
     --sign-cert-ota sign_cert.key \
     --module-custota Custota-<version>-release.zip \
     --module-msd MSD-<version>-release.zip \
+    --module-chargelimit ChargeLimit-<version>-release.zip \
     --module-bcr BCR-<version>-release.zip \
     --module-oemunlockonboot OEMUnlockOnBoot-<version>-release.zip \
     --module-alterinstaller AlterInstaller-<version>-release.zip
