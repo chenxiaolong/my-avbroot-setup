@@ -1153,12 +1153,11 @@ def main():
         try:
             run(args, Path(temp_dir))
         except Exception as e:
-            if args.debug_shell:
-                # Use default printer for pretty colors on Python 3.13.
-                if hasattr(traceback, '_print_exception_bltin'):
-                    traceback._print_exception_bltin(e)
-                else:
-                    traceback.print_exception(e)
+            # Use default printer for pretty colors on Python 3.13.
+            if hasattr(traceback, '_print_exception_bltin'):
+                traceback._print_exception_bltin(e)
+            else:
+                traceback.print_exception(e)
 
             exit_code = 1
 
