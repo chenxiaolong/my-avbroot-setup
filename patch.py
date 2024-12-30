@@ -605,69 +605,6 @@ def inject_msd(
     )
 
 
-def inject_chargelimit(
-    module_zip: Path,
-    module_sig: Path,
-    entries: list,
-    tree: Path,
-    contexts: Contexts,
-    sepolicies: Iterable[Path],
-):
-    verify_ssh_sig(module_zip, module_sig, SSH_PUBLIC_KEY_CHENXIAOLONG)
-
-    status(f'Injecting ChargeLimit: {module_zip}')
-
-    with (
-        zipfile.ZipFile(module_zip, 'r') as z,
-        tempfile.NamedTemporaryFile(delete_on_close=False) as f_temp,
-    ):
-        arch = platform.machine()
-        if arch == 'arm64':
-            abi = 'arm64-v8a'
-        else:
-            abi = arch
-
-        for path in z.namelist():
-            if path == f'chargelimit-selinux.{abi}':
-                with z.open(path) as f_exe:
-                    shutil.copyfileobj(f_exe, f_temp)
-                os.fchmod(f_temp.fileno(), 0o700)
-                f_temp.close()
-
-            if not path.endswith('.apk') and not path.endswith('.xml'):
-                continue
-
-            # Add to filesystem entries.
-            add_file_entry(entries, contexts, f'/{path}', 0o644)
-
-            # Extract file contents.
-            tree_path = tree / path
-            tree_path.parent.mkdir(parents=True, exist_ok=True)
-            zip_extract(z, path, tree_path)
-
-        assert f_temp.closed
-
-        # Add SELinux rules.
-        for sepolicy in sepolicies:
-            status(f'Adding ChargeLimit SELinux rules: {sepolicy}')
-
-            subprocess.check_call([
-                f_temp.name,
-                '--source', sepolicy,
-                '--target', sepolicy,
-            ])
-
-        seapp = tree / 'system' / 'etc' / 'selinux' / 'plat_seapp_contexts'
-        status(f'Adding ChargeLimit seapp context: {seapp}')
-
-        with (
-            z.open('plat_seapp_contexts', 'r') as f_in,
-            open(seapp, 'ab') as f_out,
-        ):
-            shutil.copyfileobj(f_in, f_out)
-            f_out.write(b'\n')
-
-
 def inject_bcr(
     module_zip: Path,
     module_sig: Path,
@@ -900,17 +837,6 @@ def parse_args():
         help='MSD module zip signature',
     )
     parser.add_argument(
-        '--module-chargelimit',
-        type=Path,
-        required=True,
-        help='ChargeLimit module zip',
-    )
-    parser.add_argument(
-        '--module-chargelimit-sig',
-        type=Path,
-        help='ChargeLimit module zip signature',
-    )
-    parser.add_argument(
         '--module-bcr',
         type=Path,
         required=True,
@@ -977,8 +903,6 @@ def parse_args():
         args.module_custota_sig = Path(f'{args.module_custota}.sig')
     if args.module_msd_sig is None:
         args.module_msd_sig = Path(f'{args.module_msd}.sig')
-    if args.module_chargelimit_sig is None:
-        args.module_chargelimit_sig = Path(f'{args.module_chargelimit}.sig')
     if args.module_bcr_sig is None:
         args.module_bcr_sig = Path(f'{args.module_bcr}.sig')
     if args.module_oemunlockonboot_sig is None:
@@ -1071,14 +995,6 @@ def run(args: argparse.Namespace, temp_dir: Path):
     inject_msd(
         args.module_msd,
         args.module_msd_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-        selinux_policies,
-    )
-    inject_chargelimit(
-        args.module_chargelimit,
-        args.module_chargelimit_sig,
         system_fs_info['entries'],
         system_tree,
         system_contexts,
