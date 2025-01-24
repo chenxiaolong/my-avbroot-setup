@@ -62,22 +62,7 @@ To avoid repeated root access UI prompts, some apps spawn a long-running shell s
 
 All in all, I simply do not trust most root-enabled apps to not leave a gaping security hole, so I avoid them entirely. There are apps that do handle root access in what I would consider a more proper way, by spawning a daemon as root and then talking to the daemon over a well defined binary protocol. Unfortunately, this approach is the extreme minority.
 
-For situations where I actually do need to run a process as UID 0, I use Android's official way of getting root access: `adb root` and `/system/xbin/su`. To accomplish that, I make a `userdebug` build of GrapheneOS and set the `ro.adb.secure=1` property to retain adb's host key verification:
-
-```diff
---- a/build/core/main.mk
-+++ b/build/core/main.mk
-@@ -397,9 +397,9 @@ ifneq (,$(user_variant))
-   # default is 2000 ms as of Android 14.
-   ADDITIONAL_SYSTEM_PROPERTIES += ro.sys.time_detector_update_diff=50
-
--  ifeq ($(user_variant),user)
-     ADDITIONAL_SYSTEM_PROPERTIES += ro.adb.secure=1
--  endif
-
-   ifeq ($(user_variant),userdebug)
-     # Pick up some extra useful tools
-```
+For situations where I actually do need to run a process as UID 0, I use Android's official way of getting root access: `adb root` and `/system/xbin/su`. To accomplish that, I make a `userdebug` build of GrapheneOS and set the `ro.adb.secure=1` property to retain adb's host key verification: https://github.com/chenxiaolong/grapheneos-patches#secure-adb-for-userdebug-builds.
 
 ### Runtime code patching
 
