@@ -43,14 +43,15 @@ def status(*args, **kwargs):
 
 
 def verify_ota(ota: Path, public_key_avb: Path, cert_ota: Path):
-    status(f'Verifying OTA: {ota}')
-
-    subprocess.check_call([
-        'avbroot', 'ota', 'verify',
-        '--input', ota,
-        '--public-key-avb', public_key_avb,
-        '--cert-ota', cert_ota,
-    ])
+    if public_key_avb and cert_ota:
+        status(f'Verifying OTA: {ota}')
+    
+        subprocess.check_call([
+            'avbroot', 'ota', 'verify',
+            '--input', ota,
+            '--public-key-avb', public_key_avb,
+            '--cert-ota', cert_ota,
+        ])
 
 
 def unpack_ota(ota: Path, output_dir: Path, all: bool):
@@ -787,13 +788,11 @@ def parse_args():
     parser.add_argument(
         '--verify-public-key-avb',
         type=Path,
-        required=True,
         help='AVB public key for verifying input OTA',
     )
     parser.add_argument(
         '--verify-cert-ota',
         type=Path,
-        required=True,
         help='OTA certificate for verifying input OTA',
     )
     parser.add_argument(
@@ -817,7 +816,6 @@ def parse_args():
     parser.add_argument(
         '--module-custota',
         type=Path,
-        required=True,
         help='Custota module zip',
     )
     parser.add_argument(
@@ -828,7 +826,6 @@ def parse_args():
     parser.add_argument(
         '--module-msd',
         type=Path,
-        required=True,
         help='MSD module zip',
     )
     parser.add_argument(
@@ -839,7 +836,6 @@ def parse_args():
     parser.add_argument(
         '--module-bcr',
         type=Path,
-        required=True,
         help='BCR module zip',
     )
     parser.add_argument(
@@ -850,7 +846,6 @@ def parse_args():
     parser.add_argument(
         '--module-oemunlockonboot',
         type=Path,
-        required=True,
         help='OEMUnlockOnBoot module zip',
     )
     parser.add_argument(
@@ -861,7 +856,6 @@ def parse_args():
     parser.add_argument(
         '--module-alterinstaller',
         type=Path,
-        required=True,
         help='AlterInstaller module zip',
     )
     parser.add_argument(
@@ -984,43 +978,48 @@ def run(args: argparse.Namespace, temp_dir: Path):
     ]
 
     # Inject modules.
-    inject_custota(
-        args.module_custota,
-        args.module_custota_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-        selinux_policies,
-    )
-    inject_msd(
-        args.module_msd,
-        args.module_msd_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-        selinux_policies,
-    )
-    inject_bcr(
-        args.module_bcr,
-        args.module_bcr_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-    )
-    inject_oemunlockonboot(
-        args.module_oemunlockonboot,
-        args.module_oemunlockonboot_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-    )
-    inject_alterinstaller(
-        args.module_alterinstaller,
-        args.module_alterinstaller_sig,
-        system_fs_info['entries'],
-        system_tree,
-        system_contexts,
-    )
+    if args.module_custota:
+        inject_custota(
+            args.module_custota,
+            args.module_custota_sig,
+            system_fs_info['entries'],
+            system_tree,
+            system_contexts,
+            selinux_policies,
+        )
+    if args.module_msd:
+        inject_msd(
+            args.module_msd,
+            args.module_msd_sig,
+            system_fs_info['entries'],
+            system_tree,
+            system_contexts,
+            selinux_policies,
+        )
+    if args.module_bcr:
+        inject_bcr(
+            args.module_bcr,
+            args.module_bcr_sig,
+            system_fs_info['entries'],
+            system_tree,
+            system_contexts,
+        )
+    if args.module_oemunlockonboot:
+        inject_oemunlockonboot(
+            args.module_oemunlockonboot,
+            args.module_oemunlockonboot_sig,
+            system_fs_info['entries'],
+            system_tree,
+            system_contexts,
+        )
+    if args.module_alterinstaller:
+        inject_alterinstaller(
+            args.module_alterinstaller,
+            args.module_alterinstaller_sig,
+            system_fs_info['entries'],
+            system_tree,
+            system_contexts,
+        )
 
     # Repack system image.
     with open(system_metadata, 'w') as f:
