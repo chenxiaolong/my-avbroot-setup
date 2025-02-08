@@ -75,6 +75,8 @@ def patch_ota(
     key_avb: SigningKey,
     key_ota: SigningKey,
     cert_ota: Path,
+    magisk : Path,
+    magisk_preinit_device : str,
     replace: dict[str, Path],
 ):
     image_names = ', '.join(sorted(replace.keys()))
@@ -87,8 +89,15 @@ def patch_ota(
         '--key-avb', key_avb.key,
         '--key-ota', key_ota.key,
         '--cert-ota', cert_ota,
-        '--rootless',
-    ]
+     ]
+     
+    if magisk:
+        cmd.append('--magisk')
+        cmd.append(magisk)
+        cmd.append('--magisk-preinit-device')
+        cmd.append(magisk_preinit_device)
+    else:
+        cmd.append('--rootless')
 
     if key_avb.pass_env is not None:
         cmd.append('--pass-avb-env-var')
@@ -888,6 +897,16 @@ def parse_args():
         type=Path,
         help='Private key passphrase file for OTA signing.',
     )
+    parser.add_argument(
+        '--magisk',
+        type=Path,
+        help='Path to Magisk APK',
+    )
+    parser.add_argument(
+        '--magisk-preinit-device',
+        type=str,
+        help=' Magisk preinit block device',
+    )
 
     args = parser.parse_args()
 
@@ -905,6 +924,8 @@ def parse_args():
     if args.module_alterinstaller_sig is None:
         args.module_alterinstaller_sig = \
             Path(f'{args.module_alterinstaller}.sig')
+    if args.magisk and not args.magisk_preinit_device:
+        parser.error('--magisk requires --magisk-preinit-device')
 
     return args
 
@@ -1043,6 +1064,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
         sign_key_avb,
         sign_key_ota,
         args.sign_cert_ota,
+        args.magisk,
+        args.magisk_preinit_device,
         {
             'system': system_image,
             'vendor': vendor_image,
