@@ -143,6 +143,11 @@ def parse_args():
         action='append',
         help='Extra argument to pass to `avbroot ota patch`',
     )
+    parser.add_argument(
+        '--skip-custota-tool',
+        action='store_true',
+        help='Skip creating Custota csig file and update JSON file',
+    )
 
     for name in modules.all_modules():
         parser.add_argument(
@@ -310,13 +315,14 @@ def run(args: argparse.Namespace, temp_dir: Path):
         args.patch_arg,
     )
 
-    # Generate Custota csig.
-    external.generate_csig(args.output, sign_key_ota, args.sign_cert_ota)
+    if not args.skip_custota_tool:
+        # Generate Custota csig.
+        external.generate_csig(args.output, sign_key_ota, args.sign_cert_ota)
 
-    # Generate Custota update-info.
-    codename = get_ota_metadata(args.output)['pre-device']
-    update_info = args.output.parent / f'{codename}.json'
-    external.generate_update_info(update_info, args.output.name)
+        # Generate Custota update-info.
+        codename = get_ota_metadata(args.output)['pre-device']
+        update_info = args.output.parent / f'{codename}.json'
+        external.generate_update_info(update_info, args.output.name)
 
 
 def main():
