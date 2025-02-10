@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2024-2025 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 import dataclasses
 import logging
 from pathlib import Path
@@ -60,8 +60,9 @@ def patch_ota(
     key_ota: SigningKey,
     cert_ota: Path,
     replace: dict[str, Path],
+    extra_args: Sequence[str],
 ):
-    image_names = ', '.join(sorted(replace.keys()))
+    image_names = ', '.join(sorted(replace.keys())) if replace else '(none)'
     logger.info(f'Patching OTA with replaced images: {image_names}: {output_ota}')
 
     cmd = [
@@ -71,7 +72,7 @@ def patch_ota(
         '--key-avb', key_avb.key,
         '--key-ota', key_ota.key,
         '--cert-ota', cert_ota,
-        '--rootless',
+        *extra_args,
     ]
 
     if key_avb.pass_env is not None:

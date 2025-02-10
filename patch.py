@@ -131,12 +131,17 @@ def parse_args():
     parser.add_argument(
         '--pass-avb-file',
         type=Path,
-        help='Private key passphrase file for AVB signing.',
+        help='Private key passphrase file for AVB signing',
     )
     parser.add_argument(
         '--pass-ota-file',
         type=Path,
-        help='Private key passphrase file for OTA signing.',
+        help='Private key passphrase file for OTA signing',
+    )
+    parser.add_argument(
+        '--patch-arg',
+        action='append',
+        help='Extra argument to pass to `avbroot ota patch`',
     )
 
     for name in modules.all_modules():
@@ -155,6 +160,9 @@ def parse_args():
 
     if args.output is None:
         args.output = Path(f'{args.input}.patched')
+
+    if args.patch_arg is None:
+        args.patch_arg = ['--rootless']
 
     for name in modules.all_modules():
         sig_key = f'module_{name}_sig'
@@ -299,6 +307,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
         sign_key_ota,
         args.sign_cert_ota,
         {name: images_dir / f'{name}.img' for name in boot_fs | ext_fs},
+        args.patch_arg,
     )
 
     # Generate Custota csig.
