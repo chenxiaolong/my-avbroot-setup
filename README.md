@@ -23,8 +23,15 @@ The `avbroot`, `afsr`, and `custota-tool` commands must exist in `PATH`.
 
 ## Usage
 
+Install the required Python dependencies. This can also be done inside a venv or by installing the packages from your Linux distro's package manager.
+
 ```bash
 pip install -r requirements.txt
+```
+
+Then, run the patch script:
+
+```bash
 python3 patch.py \
     --input ota.zip \
     --verify-public-key-avb verify_avb_pkmd.bin \
