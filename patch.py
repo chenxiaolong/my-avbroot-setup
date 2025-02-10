@@ -88,13 +88,11 @@ def parse_args():
     parser.add_argument(
         '--verify-public-key-avb',
         type=Path,
-        required=True,
         help='AVB public key for verifying input OTA',
     )
     parser.add_argument(
         '--verify-cert-ota',
         type=Path,
-        required=True,
         help='OTA certificate for verifying input OTA',
     )
     parser.add_argument(

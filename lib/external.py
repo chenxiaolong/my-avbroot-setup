@@ -18,15 +18,23 @@ class SigningKey:
     pass_file: Path | None
 
 
-def verify_ota(ota: Path, public_key_avb: Path, cert_ota: Path):
+def verify_ota(ota: Path, public_key_avb: Path | None, cert_ota: Path | None):
     logger.info(f'Verifying OTA: {ota}')
 
-    subprocess.check_call([
+    cmd = [
         'avbroot', 'ota', 'verify',
         '--input', ota,
-        '--public-key-avb', public_key_avb,
-        '--cert-ota', cert_ota,
-    ])
+    ]
+
+    if public_key_avb:
+        cmd.append('--public-key-avb')
+        cmd.append(public_key_avb)
+
+    if cert_ota:
+        cmd.append('--cert-ota')
+        cmd.append(cert_ota)
+
+    subprocess.check_call(cmd)
 
 
 def unpack_ota(ota: Path, output_dir: Path, partitions: Iterable[str]):
