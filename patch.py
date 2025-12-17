@@ -168,7 +168,8 @@ def parse_args():
 
     args = parser.parse_args()
 
-    global compatible_sepolicy=args.compatible_sepolicy
+    global compatible_sepolicy
+    compatible_sepolicy=args.compatible_sepolicy
 
     if args.output is None:
         args.output = Path(f'{args.input}.patched')
