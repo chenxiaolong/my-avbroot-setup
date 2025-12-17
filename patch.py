@@ -285,14 +285,10 @@ def run(args: argparse.Namespace, temp_dir: Path):
         if args.compatible_sepolicy: selinux_policies.append(ext_fs['odm'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy')
     else:
         selinux_policies = []
-
-    #To make modules use compatible sepolicy
-    global compatible_sepolicy
-    compatible_sepolicy=args.compatible_sepolicy
     
     # Inject modules.
     for module in inject_modules:
-        module.inject(boot_fs, ext_fs, selinux_policies)
+        module.inject(boot_fs, ext_fs, selinux_policies, compatible_sepolicy=args.compatible_sepolicy)
 
     # Repack ext filesystem images.
     for name, fs in ext_fs.items():
