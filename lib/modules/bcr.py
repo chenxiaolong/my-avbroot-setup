@@ -38,6 +38,7 @@ class BCRModule(Module):
         boot_fs: dict[str, CpioFs],
         ext_fs: dict[str, ExtFs],
         sepolicies: Iterable[Path],
+        compatible_sepolicy: bool = False,
     ) -> None:
         logger.info(f'Injecting BCR: {self.zip}')
 
