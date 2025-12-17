@@ -168,6 +168,8 @@ def parse_args():
 
     args = parser.parse_args()
 
+    global compatible_sepolicy=args.compatible_sepolicy
+
     if args.output is None:
         args.output = Path(f'{args.input}.patched')
 
@@ -226,7 +228,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
     if need_sepolicies:
         need_boot_fs.add('vendor_boot')
         need_ext_fs.add('vendor')
-        if args.compatible-sepolicy: need_ext_fs.add('odm')
+        if args.compatible_sepolicy: need_ext_fs.add('odm')
 
     # Verify OTA.
     external.verify_ota(args.input, args.verify_public_key_avb, args.verify_cert_ota)
@@ -282,7 +284,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
             boot_fs['vendor_boot'].tree / 'sepolicy',
             ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
         ]
-        if args.compatible-sepolicy: selinux_policies.append(ext_fs['odm'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy')
+        if args.compatible_sepolicy: selinux_policies.append(ext_fs['odm'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy')
     else:
         selinux_policies = []
 
