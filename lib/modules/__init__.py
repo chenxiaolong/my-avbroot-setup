@@ -13,7 +13,7 @@ from typing import Callable
 import zipfile
 
 from lib.filesystem import CpioFs, ExtFs
-
+from patch import compatible_sepolicy
 
 logger = logging.getLogger(__name__)
 
