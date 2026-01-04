@@ -266,51 +266,12 @@ def run(args: argparse.Namespace, temp_dir: Path):
         ext_fs[name] = ExtFs(info=info, tree=paths.tree, contexts=[])
 
     # Parse SELinux label mappings for use when creating new entries.
-    # Each partition has its own file_contexts file that maps file paths to SELinux labels.
-    # These patterns are partition-specific (e.g., vendor_file_contexts only has patterns
-    # for /vendor paths). Loading the correct file_contexts for each partition ensures
-    # that any new files created get the appropriate SELinux labels.
     if ext_fs:
-        if args.compatible_sepolicy:
-            # In compatible mode, load partition-specific file_contexts to properly label
-            # files in vendor/odm partitions. This is necessary because plat_file_contexts
-            # only contains patterns for /system paths and won't match /vendor or /odm paths.
-            file_contexts_map = {
-                'system': ('system', 'etc', 'selinux', 'plat_file_contexts'),
-                'system_ext': ('system_ext', 'etc', 'selinux', 'system_ext_file_contexts'),
-                'product': ('product', 'etc', 'selinux', 'product_file_contexts'),
-                'vendor': ('vendor', 'etc', 'selinux', 'vendor_file_contexts'),
-                'odm': ('odm', 'etc', 'selinux', 'odm_file_contexts'),
-            }
+        contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
+            'system' / 'etc' / 'selinux' / 'plat_file_contexts')
 
-            for name, fs in ext_fs.items():
-                if name in file_contexts_map:
-                    file_contexts_path = fs.tree.joinpath(*file_contexts_map[name])
-                    if file_contexts_path.exists():
-                        logger.info(f'Loading file_contexts for {name}: {file_contexts_path}')
-                        fs.contexts = filesystem.load_file_contexts(file_contexts_path)
-                    else:
-                        logger.warning(f'Partition-specific file_contexts not found for {name}: {file_contexts_path}')
-                        # Fall back to plat_file_contexts if available
-                        if 'system' in ext_fs:
-                            plat_contexts_path = ext_fs['system'].tree / 'system' / 'etc' / 'selinux' / 'plat_file_contexts'
-                            if plat_contexts_path.exists():
-                                logger.info(f'Falling back to plat_file_contexts for {name}')
-                                fs.contexts = filesystem.load_file_contexts(plat_contexts_path)
-                else:
-                    # For unknown partitions, try to use plat_file_contexts as fallback
-                    if 'system' in ext_fs:
-                        plat_contexts_path = ext_fs['system'].tree / 'system' / 'etc' / 'selinux' / 'plat_file_contexts'
-                        if plat_contexts_path.exists():
-                            logger.info(f'Using plat_file_contexts for unknown partition {name}')
-                            fs.contexts = filesystem.load_file_contexts(plat_contexts_path)
-        else:
-            # Use plat_file_contexts for all partitions (default behavior that currently works)
-            contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
-                'system' / 'etc' / 'selinux' / 'plat_file_contexts')
-
-            for _, fs in ext_fs.items():
-                fs.contexts = contexts
+        for _, fs in ext_fs.items():
+            fs.contexts = contexts
 
     # We only update the precompiled policies and leave the CIL policies alone.
     # Since we're starting from a (hopefully) properly built Android build, we
