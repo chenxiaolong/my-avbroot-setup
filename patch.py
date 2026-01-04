@@ -266,12 +266,38 @@ def run(args: argparse.Namespace, temp_dir: Path):
         ext_fs[name] = ExtFs(info=info, tree=paths.tree, contexts=[])
 
     # Parse SELinux label mappings for use when creating new entries.
+    # Load partition-specific file_contexts for each partition.
     if ext_fs:
-        contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
-            'system' / 'etc' / 'selinux' / 'plat_file_contexts')
+        # Mapping of partition names to their file_contexts paths
+        file_contexts_map = {
+            'system': ('system', 'etc', 'selinux', 'plat_file_contexts'),
+            'system_ext': ('system_ext', 'etc', 'selinux', 'system_ext_file_contexts'),
+            'product': ('product', 'etc', 'selinux', 'product_file_contexts'),
+            'vendor': ('vendor', 'etc', 'selinux', 'vendor_file_contexts'),
+            'odm': ('odm', 'etc', 'selinux', 'odm_file_contexts'),
+        }
 
-        for _, fs in ext_fs.items():
-            fs.contexts = contexts
+        for name, fs in ext_fs.items():
+            if name in file_contexts_map:
+                file_contexts_path = fs.tree.joinpath(*file_contexts_map[name])
+                if file_contexts_path.exists():
+                    logger.info(f'Loading file_contexts for {name}: {file_contexts_path}')
+                    fs.contexts = filesystem.load_file_contexts(file_contexts_path)
+                else:
+                    logger.warning(f'Partition-specific file_contexts not found for {name}: {file_contexts_path}')
+                    # Fall back to plat_file_contexts if available
+                    if 'system' in ext_fs:
+                        plat_contexts_path = ext_fs['system'].tree / 'system' / 'etc' / 'selinux' / 'plat_file_contexts'
+                        if plat_contexts_path.exists():
+                            logger.info(f'Falling back to plat_file_contexts for {name}')
+                            fs.contexts = filesystem.load_file_contexts(plat_contexts_path)
+            else:
+                # For unknown partitions, try to use plat_file_contexts as fallback
+                if 'system' in ext_fs:
+                    plat_contexts_path = ext_fs['system'].tree / 'system' / 'etc' / 'selinux' / 'plat_file_contexts'
+                    if plat_contexts_path.exists():
+                        logger.info(f'Using plat_file_contexts for unknown partition {name}')
+                        fs.contexts = filesystem.load_file_contexts(plat_contexts_path)
 
     # We only update the precompiled policies and leave the CIL policies alone.
     # Since we're starting from a (hopefully) properly built Android build, we
