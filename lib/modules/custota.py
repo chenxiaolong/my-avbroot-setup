@@ -79,12 +79,5 @@ class CustotaModule(Module):
                         outputs=[sepolicy],
                     )
 
-            seapp = 'system/etc/selinux/plat_seapp_contexts'
-            logger.info(f'Adding Custota seapp context: {seapp}')
-
-            with (
-                z.open('plat_seapp_contexts', 'r') as f_in,
-                system_fs.open(seapp, 'ab') as f_out,
-            ):
-                shutil.copyfileobj(f_in, f_out)
-                f_out.write(b'\n')
+            # Append seapp_contexts to all relevant partitions
+            modules.append_seapp_contexts(z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy)

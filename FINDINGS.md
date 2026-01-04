@@ -54,9 +54,18 @@ This ensures module app contexts are recognized consistently across all partitio
 2. **Additional policy patching**: Patch system/system_ext/product policies too
 3. **Over-patching issue**: Maybe patching odm conflicts with vendor?
 
-## Next Steps
+## Implementation Status
 
-1. Check if typical ROMs have vendor_seapp_contexts and odm_seapp_contexts files
-2. Implement seapp_contexts merging for --compatible-sepolicy
-3. Test if this fixes module functionality
-4. If not, gather SELinux denial logs to understand what's actually being blocked
+✅ **IMPLEMENTED** - seapp_contexts merging for --compatible-sepolicy mode
+
+See `IMPLEMENTATION.md` for details on:
+- Helper function added to `lib/modules/__init__.py`
+- Updated `custota.py` and `msd.py` to use the helper
+- Automatic merging of contexts across plat/vendor/odm partitions
+
+## Next Steps for Testing
+
+1. Test with --compatible-sepolicy flag on ROMs with custom vendor/odm configs
+2. Check logs for "Adding seapp contexts to vendor/odm" messages
+3. Verify module functionality now works correctly
+4. If issues persist, gather SELinux denial logs (avc: denied messages)

@@ -59,6 +59,58 @@ def zip_extract(
             shutil.copyfileobj(f_in, f_out)
 
 
+def append_seapp_contexts(
+    zip: zipfile.ZipFile,
+    seapp_contexts_name: str,
+    ext_fs: dict[str, ExtFs],
+    compatible_sepolicy: bool = False,
+):
+    """
+    Append seapp_contexts from a module zip to the appropriate partition files.
+    
+    In compatible mode, appends to all partition-specific seapp_contexts files
+    (plat, vendor, odm) to ensure consistent app labeling across partitions.
+    
+    Args:
+        zip: Module zipfile containing seapp_contexts
+        seapp_contexts_name: Name of the seapp_contexts file in the zip
+        ext_fs: Dictionary of filesystem objects by partition name
+        compatible_sepolicy: If True, also append to vendor/odm seapp_contexts
+    """
+    # Always append to plat_seapp_contexts
+    system_fs = ext_fs['system']
+    plat_seapp = 'system/etc/selinux/plat_seapp_contexts'
+    logger.info(f'Adding seapp contexts to: {plat_seapp}')
+    
+    with (
+        zip.open(seapp_contexts_name, 'r') as f_in,
+        system_fs.open(plat_seapp, 'ab') as f_out,
+    ):
+        shutil.copyfileobj(f_in, f_out)
+        f_out.write(b'\n')
+    
+    # In compatible mode, also append to vendor/odm seapp_contexts if they exist
+    if compatible_sepolicy:
+        for partition_name in ['vendor', 'odm']:
+            if partition_name not in ext_fs:
+                continue
+            
+            partition_fs = ext_fs[partition_name]
+            seapp_file = f'{partition_name}/etc/selinux/{partition_name}_seapp_contexts'
+            seapp_path = partition_fs.tree / partition_name / 'etc' / 'selinux' / f'{partition_name}_seapp_contexts'
+            
+            if seapp_path.exists():
+                logger.info(f'Adding seapp contexts to: {seapp_file} (compatible mode)')
+                with (
+                    zip.open(seapp_contexts_name, 'r') as f_in,
+                    partition_fs.open(seapp_file, 'ab') as f_out,
+                ):
+                    shutil.copyfileobj(f_in, f_out)
+                    f_out.write(b'\n')
+            else:
+                logger.info(f'Skipping {seapp_file}: file does not exist')
+
+
 @dataclasses.dataclass
 class ModuleRequirements:
     boot_images: set[str]
