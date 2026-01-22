@@ -81,3 +81,8 @@ class CustotaModule(Module):
 
             # Append seapp_contexts to all relevant partitions
             modules.append_seapp_contexts(z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy)
+        
+        # Patch vendor/odm CIL files with ueventd firmware rules for persistence
+        # This fixes bootloops caused by LineageOS recompiling policies during Custota updates
+        if compatible_sepolicy:
+            modules.patch_vendor_cil_for_ueventd(ext_fs, compatible_sepolicy)

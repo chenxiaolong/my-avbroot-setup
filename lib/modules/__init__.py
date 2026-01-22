@@ -111,6 +111,68 @@ def append_seapp_contexts(
                 logger.info(f'Skipping {seapp_file}: file does not exist')
 
 
+def patch_vendor_cil_for_ueventd(
+    ext_fs: dict[str, ExtFs],
+    compatible_sepolicy: bool = False,
+):
+    """
+    Add ueventd firmware access rules to vendor/odm CIL files for persistence.
+    
+    This ensures that ueventd can access vendor firmware files (like ipa_fws.mdt)
+    even after LineageOS or other ROMs recompile SELinux policies from CIL sources
+    during Custota live updates. Without these rules, the device may bootloop due
+    to firmware loading failures.
+    
+    The rules are added to CIL source files (not just precompiled binaries) so they
+    persist through boot-time policy recompilation. Binary policies are still
+    patched separately by custota-selinux for immediate use.
+    
+    Args:
+        ext_fs: Dictionary of filesystem objects by partition name
+        compatible_sepolicy: If True, also patch odm_sepolicy.cil
+    """
+    # CIL rules for ueventd to access vendor firmware files
+    # This fixes bootloops caused by firmware loading failures (e.g., ipa_fws.mdt)
+    ueventd_firmware_rules = """
+; Added by my-avbroot-setup --compatible-sepolicy
+; Allow ueventd to access vendor firmware files during boot
+; Fixes bootloop from IPA/firmware loading failures during Custota updates
+(allow ueventd vendor_firmware_file (file (read open getattr)))
+(allow ueventd vendor_firmware_file (dir (read open search)))
+"""
+    
+    # Patch vendor CIL if it exists
+    if 'vendor' in ext_fs:
+        vendor_cil_path = ext_fs['vendor'].tree / 'vendor' / 'etc' / 'selinux' / 'vendor_sepolicy.cil'
+        
+        if vendor_cil_path.exists():
+            # Check if rules already exist to avoid duplicates
+            existing_content = vendor_cil_path.read_text()
+            if 'my-avbroot-setup --compatible-sepolicy' in existing_content:
+                logger.info('Ueventd firmware rules already present in vendor_sepolicy.cil')
+            else:
+                with open(vendor_cil_path, 'a') as f:
+                    f.write(ueventd_firmware_rules)
+                logger.info('Added ueventd firmware access rules to vendor_sepolicy.cil')
+        else:
+            logger.warning(f'vendor_sepolicy.cil not found at {vendor_cil_path}')
+    
+    # Patch ODM CIL if --compatible-sepolicy is enabled and ODM partition exists
+    if compatible_sepolicy and 'odm' in ext_fs:
+        odm_cil_path = ext_fs['odm'].tree / 'odm' / 'etc' / 'selinux' / 'odm_sepolicy.cil'
+        
+        if odm_cil_path.exists():
+            existing_content = odm_cil_path.read_text()
+            if 'my-avbroot-setup --compatible-sepolicy' in existing_content:
+                logger.info('Ueventd firmware rules already present in odm_sepolicy.cil')
+            else:
+                with open(odm_cil_path, 'a') as f:
+                    f.write(ueventd_firmware_rules)
+                logger.info('Added ueventd firmware access rules to odm_sepolicy.cil')
+        else:
+            logger.info(f'odm_sepolicy.cil not found at {odm_cil_path} (may not exist on this ROM)')
+
+
 @dataclasses.dataclass
 class ModuleRequirements:
     boot_images: set[str]

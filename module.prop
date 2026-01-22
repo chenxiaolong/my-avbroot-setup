@@ -1,0 +1,7 @@
+id=com.chiller3.custota
+name=Custota
+version=v5.19
+versionCode=332544
+author=chenxiaolong
+description=Custom OTA updater
+updateJson=https://github.com/chenxiaolong/Custota/raw/master/app/module/updates/release/info.json
