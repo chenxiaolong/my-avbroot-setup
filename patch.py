@@ -31,12 +31,12 @@ class BootImagePaths:
     tree: Path
 
     def __init__(self, images_dir: Path, unpacked_dir: Path, name: str) -> None:
-        self.image = images_dir / f'{name}.img'
+        self.image = images_dir / f"{name}.img"
         self.unpacked = unpacked_dir / name
-        self.raw_image = self.unpacked / 'raw.img'
-        self.ramdisk = self.unpacked / 'ramdisk.img.0'
-        self.metadata = self.unpacked / 'cpio.toml'
-        self.tree = self.unpacked / 'cpio_tree'
+        self.raw_image = self.unpacked / "raw.img"
+        self.ramdisk = self.unpacked / "ramdisk.img.0"
+        self.metadata = self.unpacked / "cpio.toml"
+        self.tree = self.unpacked / "cpio_tree"
 
 
 @dataclasses.dataclass
@@ -48,24 +48,24 @@ class ExtImagePaths:
     tree: Path
 
     def __init__(self, images_dir: Path, unpacked_dir: Path, name: str) -> None:
-        self.image = images_dir / f'{name}.img'
+        self.image = images_dir / f"{name}.img"
         self.unpacked = unpacked_dir / name
-        self.raw_image = self.unpacked / 'raw.img'
-        self.metadata = self.unpacked / 'fs_metadata.toml'
-        self.tree = self.unpacked / 'fs_tree'
+        self.raw_image = self.unpacked / "raw.img"
+        self.metadata = self.unpacked / "fs_metadata.toml"
+        self.tree = self.unpacked / "fs_tree"
 
 
 def get_ota_metadata(ota: Path) -> dict[str, str]:
     props: dict[str, str] = {}
 
-    with zipfile.ZipFile(ota, 'r') as z:
-        with z.open('META-INF/com/android/metadata', 'r') as f:
+    with zipfile.ZipFile(ota, "r") as z:
+        with z.open("META-INF/com/android/metadata", "r") as f:
             for line in f:
-                line = line.decode('UTF-8').strip()
+                line = line.decode("UTF-8").strip()
 
-                key, delim, value = line.partition('=')
+                key, delim, value = line.partition("=")
                 if not delim:
-                    raise ValueError(f'Bad OTA metadata line: {line!r}')
+                    raise ValueError(f"Bad OTA metadata line: {line!r}")
 
                 props[key] = value
 
@@ -75,106 +75,111 @@ def get_ota_metadata(ota: Path) -> dict[str, str]:
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--input',
+        "--input",
         type=Path,
         required=True,
-        help='Input OTA',
+        help="Input OTA",
     )
     parser.add_argument(
-        '--output',
+        "--output",
         type=Path,
-        help='Output OTA',
+        help="Output OTA",
     )
     parser.add_argument(
-        '--verify-public-key-avb',
+        "--verify-public-key-avb",
         type=Path,
-        help='AVB public key for verifying input OTA',
+        help="AVB public key for verifying input OTA",
     )
     parser.add_argument(
-        '--verify-cert-ota',
+        "--verify-cert-ota",
         type=Path,
-        help='OTA certificate for verifying input OTA',
+        help="OTA certificate for verifying input OTA",
     )
     parser.add_argument(
-        '--sign-key-avb',
-        type=Path,
-        required=True,
-        help='AVB private key for signing output OTA',
-    )
-    parser.add_argument(
-        '--sign-key-ota',
+        "--sign-key-avb",
         type=Path,
         required=True,
-        help='OTA private key for signing output OTA',
+        help="AVB private key for signing output OTA",
     )
     parser.add_argument(
-        '--sign-cert-ota',
+        "--sign-key-ota",
         type=Path,
         required=True,
-        help='OTA certificate for signing output OTA',
+        help="OTA private key for signing output OTA",
     )
     parser.add_argument(
-        '--debug-shell',
-        action='store_true',
-        help='Spawn a debug shell before cleaning up temporary directory',
+        "--sign-cert-ota",
+        type=Path,
+        required=True,
+        help="OTA certificate for signing output OTA",
     )
     parser.add_argument(
-        '--pass-avb-env-var',
+        "--debug-shell",
+        action="store_true",
+        help="Spawn a debug shell before cleaning up temporary directory",
+    )
+    parser.add_argument(
+        "--pass-avb-env-var",
         type=str,
-        help='Private key passphrase environment variable for AVB signing',
+        help="Private key passphrase environment variable for AVB signing",
     )
     parser.add_argument(
-        '--pass-ota-env-var',
+        "--pass-ota-env-var",
         type=str,
-        help='Private key passphrase environment variable for OTA signing',
+        help="Private key passphrase environment variable for OTA signing",
     )
     parser.add_argument(
-        '--pass-avb-file',
+        "--pass-avb-file",
         type=Path,
-        help='Private key passphrase file for AVB signing',
+        help="Private key passphrase file for AVB signing",
     )
     parser.add_argument(
-        '--pass-ota-file',
+        "--pass-ota-file",
         type=Path,
-        help='Private key passphrase file for OTA signing',
+        help="Private key passphrase file for OTA signing",
     )
     parser.add_argument(
-        '--patch-arg',
-        action='append',
-        help='Extra argument to pass to `avbroot ota patch`',
+        "--patch-arg",
+        action="append",
+        help="Extra argument to pass to `avbroot ota patch`",
     )
     parser.add_argument(
-        '--skip-custota-tool',
-        action='store_true',
-        help='Skip creating Custota csig file and update JSON file',
+        "--skip-custota-tool",
+        action="store_true",
+        help="Skip creating Custota csig file and update JSON file",
+    )
+    parser.add_argument(
+        "--compatible-sepolicy",
+        action="store_true",
+        help="Change sepolicy files to allow patching other selinux partitions and don't fail if selinux is missing.",
     )
 
     for name in modules.all_modules():
         parser.add_argument(
-            f'--module-{name}',
+            f"--module-{name}",
             type=Path,
-            help=f'{name} module zip',
+            help=f"{name} module zip",
         )
         parser.add_argument(
-            f'--module-{name}-sig',
+            f"--module-{name}-sig",
             type=Path,
-            help=f'{name} module zip signature',
+            help=f"{name} module zip signature",
         )
 
     args = parser.parse_args()
 
     if args.output is None:
-        args.output = Path(f'{args.input}.patched')
+        args.output = Path(f"{args.input}.patched")
 
     if args.patch_arg is None:
-        args.patch_arg = ['--rootless']
+        args.patch_arg = ["--rootless"]
 
     for name in modules.all_modules():
-        sig_key = f'module_{name}_sig'
+        sig_key = f"module_{name}_sig"
 
         if getattr(args, sig_key) is None:
-            zip_path: Path = getattr(args, f'module_{name}')
-            setattr(args, sig_key, Path(f'{zip_path}.sig'))
+            zip_path: Path = getattr(args, f"module_{name}")
+            setattr(args, sig_key, Path(f"{zip_path}.sig"))
 
     return args
 
@@ -197,8 +202,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
     need_sepolicies = False
 
     for name, constructor in modules.all_modules().items():
-        zip_path: Path | None = getattr(args, f'module_{name}')
-        sig_path: Path | None = getattr(args, f'module_{name}_sig')
+        zip_path: Path | None = getattr(args, f"module_{name}")
+        sig_path: Path | None = getattr(args, f"module_{name}_sig")
 
         if zip_path is None or sig_path is None:
             continue
@@ -214,19 +219,21 @@ def run(args: argparse.Namespace, temp_dir: Path):
     # If we're messing with any ext filesystems, then we need to load the system
     # images to get the list of SELinux contexts.
     if need_ext_fs:
-        need_ext_fs.add('system')
+        need_ext_fs.add("system")
 
     # If we're patching the SELinux policy, then we need to patch both copies of
     # the precompiled policy.
     if need_sepolicies:
-        need_boot_fs.add('vendor_boot')
-        need_ext_fs.add('vendor')
+        need_boot_fs.add("vendor_boot")
+        need_ext_fs.add("vendor")
+        if args.compatible_sepolicy:
+            need_ext_fs.add("odm")
 
     # Verify OTA.
     external.verify_ota(args.input, args.verify_public_key_avb, args.verify_cert_ota)
 
     # Unpack OTA.
-    images_dir = temp_dir / 'images'
+    images_dir = temp_dir / "images"
     if need_boot_fs or need_ext_fs:
         external.unpack_ota(args.input, images_dir, need_boot_fs | need_ext_fs)
 
@@ -240,7 +247,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
         external.unpack_boot(paths.raw_image, paths.unpacked)
         external.unpack_cpio(paths.ramdisk, paths.unpacked)
 
-        with open(paths.metadata, 'rb') as f:
+        with open(paths.metadata, "rb") as f:
             info = CpioInfo.model_validate(tomlkit.load(f))
 
         boot_fs[name] = CpioFs(info=info, tree=paths.tree)
@@ -254,40 +261,83 @@ def run(args: argparse.Namespace, temp_dir: Path):
         external.unpack_avb(paths.image, paths.unpacked)
         external.unpack_fs(paths.raw_image, paths.unpacked)
 
-        with open(paths.metadata, 'rb') as f:
+        with open(paths.metadata, "rb") as f:
             info = ExtInfo.model_validate(tomlkit.load(f))
 
         ext_fs[name] = ExtFs(info=info, tree=paths.tree, contexts=[])
 
     # Parse SELinux label mappings for use when creating new entries.
+    # Load partition-specific file_contexts for proper SELinux labeling.
     if ext_fs:
-        contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
-            'system' / 'etc' / 'selinux' / 'plat_file_contexts')
+        # Load system plat_file_contexts (base contexts for all partitions)
+        plat_contexts = filesystem.load_file_contexts(
+            ext_fs["system"].tree / "system" / "etc" / "selinux" / "plat_file_contexts"
+        )
 
-        for _, fs in ext_fs.items():
-            fs.contexts = contexts
+        for partition_name, fs in ext_fs.items():
+            # Try to load partition-specific file_contexts
+            partition_contexts_file = (
+                fs.tree
+                / partition_name
+                / "etc"
+                / "selinux"
+                / f"{partition_name}_file_contexts"
+            )
+
+            if partition_contexts_file.exists():
+                # Merge: partition-specific contexts take precedence over plat
+                partition_contexts = filesystem.load_file_contexts(
+                    partition_contexts_file
+                )
+                fs.contexts = partition_contexts + plat_contexts
+            else:
+                # Fallback to plat_file_contexts only
+                fs.contexts = plat_contexts
 
     # We only update the precompiled policies and leave the CIL policies alone.
     # Since we're starting from a (hopefully) properly built Android build, we
     # should never run into a situation where the precompiled sepolicy is out of
     # date and needs to be recompiled from the CIL files during boot.
+    # For LineageOS compatibility, check if policies exist before adding them.
     if need_sepolicies:
-        selinux_policies = [
-            boot_fs['vendor_boot'].tree / 'sepolicy',
-            ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
-        ]
+        selinux_policies = []
+
+        # Check vendor_boot sepolicy (may not exist in LineageOS)
+        vendor_boot_sepolicy = boot_fs["vendor_boot"].tree / "sepolicy"
+        if vendor_boot_sepolicy.exists():
+            selinux_policies.append(vendor_boot_sepolicy)
+
+        # Check vendor precompiled_sepolicy (may not exist in LineageOS)
+        vendor_sepolicy = (
+            ext_fs["vendor"].tree / "etc" / "selinux" / "precompiled_sepolicy"
+        )
+        if vendor_sepolicy.exists():
+            selinux_policies.append(vendor_sepolicy)
+
+        # Check ODM precompiled_sepolicy (LineageOS typically only has this one)
+        if args.compatible_sepolicy and "odm" in ext_fs:
+            odm_sepolicy = (
+                ext_fs["odm"].tree / "etc" / "selinux" / "precompiled_sepolicy"
+            )
+            if odm_sepolicy.exists():
+                selinux_policies.append(odm_sepolicy)
     else:
         selinux_policies = []
 
     # Inject modules.
     for module in inject_modules:
-        module.inject(boot_fs, ext_fs, selinux_policies)
+        module.inject(
+            boot_fs,
+            ext_fs,
+            selinux_policies,
+            compatible_sepolicy=args.compatible_sepolicy,
+        )
 
     # Repack ext filesystem images.
     for name, fs in ext_fs.items():
         paths = ExtImagePaths(images_dir, temp_dir, name)
 
-        with open(paths.metadata, 'w') as f:
+        with open(paths.metadata, "w") as f:
             tomlkit.dump(fs.info.model_dump(exclude_none=True), f)
 
         external.pack_fs(paths.raw_image, paths.unpacked)
@@ -297,7 +347,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
     for name, fs in boot_fs.items():
         paths = BootImagePaths(images_dir, temp_dir, name)
 
-        with open(paths.metadata, 'w') as f:
+        with open(paths.metadata, "w") as f:
             tomlkit.dump(fs.info.model_dump(exclude_none=True), f)
 
         external.pack_cpio(paths.ramdisk, paths.unpacked)
@@ -311,7 +361,7 @@ def run(args: argparse.Namespace, temp_dir: Path):
         sign_key_avb,
         sign_key_ota,
         args.sign_cert_ota,
-        {name: images_dir / f'{name}.img' for name in boot_fs | ext_fs},
+        {name: images_dir / f"{name}.img" for name in boot_fs | ext_fs},
         args.patch_arg,
     )
 
@@ -320,8 +370,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
         external.generate_csig(args.output, sign_key_ota, args.sign_cert_ota)
 
         # Generate Custota update-info.
-        codename = get_ota_metadata(args.output)['pre-device']
-        update_info = args.output.parent / f'{codename}.json'
+        codename = get_ota_metadata(args.output)["pre-device"]
+        update_info = args.output.parent / f"{codename}.json"
         external.generate_update_info(update_info, args.output.name)
 
 
@@ -330,8 +380,10 @@ def main():
 
     logging.basicConfig(
         level=logging.DEBUG,
-        format='\x1b[1m[%(levelname)s] %(message)s\x1b[0m',
+        format="\x1b[1m[%(levelname)s] %(message)s\x1b[0m",
     )
+
+    logging.info(f"Provided arguments: {args}")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         exit_code = 0
@@ -339,16 +391,16 @@ def main():
         try:
             run(args, Path(temp_dir))
         except Exception as e:
-            logging.error('Failed to patch OTA', exc_info=e)
+            logging.error("Failed to patch OTA", exc_info=e)
             exit_code = 1
 
         if args.debug_shell:
-            shell = os.getenv('SHELL', 'bash')
-            logger.info(f'Debug shell: {shell}')
+            shell = os.getenv("SHELL", "bash")
+            logger.info(f"Debug shell: {shell}")
             subprocess.run([shell], cwd=temp_dir)
 
         exit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
