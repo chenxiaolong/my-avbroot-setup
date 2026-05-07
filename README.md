@@ -1,5 +1,7 @@
 # My avbroot setup
 
+> **Fork notice.** This repository is a compatible fork of [`chenxiaolong/my-avbroot-setup`](https://github.com/chenxiaolong/my-avbroot-setup) used by the [PixeneOS](https://github.com/0cwa/PixeneOS) build pipeline for LineageOS / non-Pixel ROM compatibility. The fork strategy and the per-hunk decomposition of its delta against upstream are documented in [`MAINTAINERS.md`](./MAINTAINERS.md) and [`docs/`](./docs/upstream-disposition.md). Upstream-bound PR drafts live under [`docs/upstream-prs/`](./docs/upstream-prs/).
+
 This repo describes my personal setup for modifying the OS on my Android devices.
 
 Unlike the norm in the Android modding community, I do not use runtime modifications and instead, prefer to modify the Android image directly. This eliminates the need for privileged code to live on writable storage and avoids giving potential malware a place to persist.
