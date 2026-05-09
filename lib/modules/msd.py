@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2024-2025 Andrew Gunnerson
+# SPDX-FileCopyrightText: 2024-2026 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
 from collections.abc import Iterable
@@ -6,7 +6,6 @@ import logging
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import tempfile
 from typing import override
 import zipfile
@@ -14,6 +13,7 @@ import zipfile
 from lib import modules
 from lib.filesystem import CpioFs, ExtFs
 from lib.initscript import InitScript
+from lib.linux import linux_android_abi, linux_run
 from lib.modules import Module, ModuleRequirements
 
 
@@ -27,7 +27,7 @@ class MSDModule(Module):
         modules.verify_ssh_sig(zip, sig, modules.SSH_PUBLIC_KEY_CHENXIAOLONG)
 
         self.zip: Path = zip
-        self.abi: str = modules.host_android_abi()
+        self.abi: str = linux_android_abi()
 
     @override
     def requirements(self) -> ModuleRequirements:
@@ -71,12 +71,16 @@ class MSDModule(Module):
                 for sepolicy in sepolicies:
                     logger.info(f'Adding MSD SELinux rules: {sepolicy}')
 
-                    subprocess.check_call([
-                        f_temp.name,
-                        'sepatch',
-                        '--source', sepolicy,
-                        '--target', sepolicy,
-                    ])
+                    linux_run(
+                        [
+                            f_temp.name,
+                            'sepatch',
+                            '--source', sepolicy,
+                            '--target', sepolicy,
+                        ],
+                        inputs=[f_temp.name, sepolicy],
+                        outputs=[sepolicy],
+                    )
 
             seapp = 'system/etc/selinux/plat_seapp_contexts'
             logger.info(f'Adding MSD seapp context: {seapp}')

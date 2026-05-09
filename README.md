@@ -8,7 +8,7 @@ This repo includes the script I use for modifying Android OTAs. Folks should pro
 
 ## Requirements
 
-* Linux
+* Host must run Linux **or** an Android device must be connected via `adb`
     * Needed for running a statically-linked Android executable
 * python3
 * [avbroot](https://github.com/chenxiaolong/avbroot) (>= version 3.12.0)

@@ -6,7 +6,6 @@ from collections.abc import Iterable
 import dataclasses
 import logging
 from pathlib import Path, PurePosixPath
-import platform
 import shutil
 import subprocess
 import tempfile
@@ -43,21 +42,6 @@ def verify_ssh_sig(zip: Path, sig: Path, public_key: str):
                 '-n', 'file',
                 '-s', sig,
             ], stdin=f_zip)
-
-
-def host_android_abi() -> str:
-    arch = platform.machine()
-
-    if arch == 'x86_64':
-        return arch
-    elif arch == 'i386' or arch == 'i486' or arch == 'i586' or arch == 'i686':
-        return 'x86'
-    elif arch == 'aarch64':
-        return 'arm64-v8a'
-    elif arch.startswith('armv7'):
-        return 'armeabi-v7a'
-    else:
-        raise ValueError(f'Unknown architecture: {arch}')
 
 
 def zip_extract(
