@@ -63,6 +63,8 @@ class BCRModule(Module):
                 'com.chiller3.bcr.standalone.RemoveHardRestrictionsKt',
             ],
             class_='main',
+            user='system',
+            group='system',
             seclabel='u:r:su:s0',
             env={
                 'CLASSPATH': f'/{apk}',

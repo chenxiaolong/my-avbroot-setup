@@ -1,19 +1,19 @@
-# SPDX-FileCopyrightText: 2024-2025 Andrew Gunnerson
+# SPDX-FileCopyrightText: 2024-2026 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
 import dataclasses
 import re
 from typing import assert_never, override
 
-from lib.filesystem import Contexts, ExtFs
+from lib.filesystem import ExtFs
 
 
 @dataclasses.dataclass
 class InitScript:
     name: str
     command: list[str]
+    user: str
     class_: str | None = None
-    user: str | None = None
     group: str | None = None
     seclabel: str | None = None
     capabilities: list[str] = dataclasses.field(default_factory=list)
@@ -55,8 +55,7 @@ class InitScript:
         if self.class_:
             lines.append(f'    class {self._escape(self.class_)}')
 
-        if self.user:
-            lines.append(f'    user {self._escape(self.user)}')
+        lines.append(f'    user {self._escape(self.user)}')
 
         if self.group:
             lines.append(f'    group {self._escape(self.group)}')

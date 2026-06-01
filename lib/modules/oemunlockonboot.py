@@ -60,6 +60,8 @@ class OEMUnlockOnBootModule(Module):
                 'com.chiller3.oemunlockonboot.Main',
             ],
             class_='main',
+            user='system',
+            group='system',
             seclabel='u:r:su:s0',
             env={
                 'CLASSPATH': f'/{path}',

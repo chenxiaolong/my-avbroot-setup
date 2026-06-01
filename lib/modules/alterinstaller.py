@@ -60,6 +60,9 @@ class AlterInstallerModule(Module):
                 '/data/local/tmp/AlterInstaller.backup.xml',
             ],
             class_='main',
+            user='system',
+            # For writing to /data/local/tmp/.
+            group='shell',
             seclabel='u:r:su:s0',
             # This must run and exit before the package manager starts.
             condition='post-fs-data',
@@ -78,6 +81,8 @@ class AlterInstallerModule(Module):
                 '/data/system/packages.xml',
             ],
             class_='main',
+            user='system',
+            group='system',
             seclabel='u:r:su:s0',
             env={
                 'CLASSPATH': f'/{path}',
