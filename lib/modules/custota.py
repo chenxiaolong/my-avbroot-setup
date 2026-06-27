@@ -5,7 +5,6 @@ from collections.abc import Iterable
 import logging
 import os
 from pathlib import Path
-import pathlib
 import shutil
 import tempfile
 from typing import override
