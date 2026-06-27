@@ -53,7 +53,7 @@ class MSDModule(Module):
                 if path == 'msd-tool.arm64-v8a':
                     dest_path = 'system/bin/msd-tool'
                     perms = 0o755
-                elif path.endswith('.apk'):
+                elif path.endswith('.apk') or path.endswith('.xml'):
                     dest_path = path
                     perms = 0o644
                 else:
