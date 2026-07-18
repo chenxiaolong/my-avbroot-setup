@@ -1,15 +1,16 @@
-# SPDX-FileCopyrightText: 2024-2025 Andrew Gunnerson
+# SPDX-FileCopyrightText: 2024-2026 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
 from abc import ABC, abstractmethod
+import argparse
 from collections.abc import Iterable
 import dataclasses
+import functools
 import logging
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import tempfile
-from typing import Callable
 import zipfile
 
 from lib.filesystem import CpioFs, ExtFs
@@ -23,6 +24,10 @@ logger = logging.getLogger(__name__)
 # https://github.com/chenxiaolong/chenxiaolong
 SSH_PUBLIC_KEY_CHENXIAOLONG = \
     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDOe6/tBnO7xZhAWXRj3ApUYgn+XZ0wnQiXM8B7tPgv4'
+
+
+class MissingArgs(Exception):
+    pass
 
 
 def verify_ssh_sig(zip: Path, sig: Path, public_key: str):
@@ -42,6 +47,33 @@ def verify_ssh_sig(zip: Path, sig: Path, public_key: str):
                 '-n', 'file',
                 '-s', sig,
             ], stdin=f_zip)
+
+
+def add_signed_module_args(parser: argparse.ArgumentParser, name: str):
+    parser.add_argument(
+        f'--module-{name}',
+        type=Path,
+        help=f'{name} module zip',
+    )
+    parser.add_argument(
+        f'--module-{name}-sig',
+        type=Path,
+        help=f'{name} module zip signature',
+    )
+
+
+def get_signed_module_args(args: argparse.Namespace, name: str, public_key: str) -> Path:
+    zip: Path | None = getattr(args, f'module_{name}')
+    if zip is None:
+        raise MissingArgs()
+
+    sig: Path | None = getattr(args, f'module_{name}_sig')
+    if sig is None:
+        sig = Path(f'{zip}.sig')
+
+    verify_ssh_sig(zip, sig, public_key)
+
+    return zip
 
 
 def zip_extract(
@@ -68,6 +100,15 @@ class ModuleRequirements:
 
 
 class Module(ABC):
+    @classmethod
+    @abstractmethod
+    def add_args(cls, parser: argparse.ArgumentParser):
+        ...
+
+    @abstractmethod
+    def __init__(self, args: argparse.Namespace):
+        ...
+
     @abstractmethod
     def requirements(self) -> ModuleRequirements:
         ...
@@ -82,17 +123,18 @@ class Module(ABC):
         ...
 
 
-def all_modules() -> dict[str, Callable[[Path, Path], Module]]:
+@functools.cache
+def all_modules() -> list[type[Module]]:
     from lib.modules.alterinstaller import AlterInstallerModule
     from lib.modules.bcr import BCRModule
     from lib.modules.custota import CustotaModule
     from lib.modules.msd import MSDModule
     from lib.modules.oemunlockonboot import OEMUnlockOnBootModule
 
-    return {
-        'alterinstaller': AlterInstallerModule,
-        'bcr': BCRModule,
-        'custota': CustotaModule,
-        'msd': MSDModule,
-        'oemunlockonboot': OEMUnlockOnBootModule,
-    }
+    return [
+        AlterInstallerModule,
+        BCRModule,
+        CustotaModule,
+        MSDModule,
+        OEMUnlockOnBootModule,
+    ]

@@ -149,17 +149,8 @@ def parse_args():
         help='Skip creating Custota csig file and update JSON file',
     )
 
-    for name in modules.all_modules():
-        parser.add_argument(
-            f'--module-{name}',
-            type=Path,
-            help=f'{name} module zip',
-        )
-        parser.add_argument(
-            f'--module-{name}-sig',
-            type=Path,
-            help=f'{name} module zip signature',
-        )
+    for module_type in modules.all_modules():
+        module_type.add_args(parser)
 
     args = parser.parse_args()
 
@@ -168,13 +159,6 @@ def parse_args():
 
     if args.patch_arg is None:
         args.patch_arg = ['--rootless']
-
-    for name in modules.all_modules():
-        sig_key = f'module_{name}_sig'
-
-        if getattr(args, sig_key) is None:
-            zip_path: Path = getattr(args, f'module_{name}')
-            setattr(args, sig_key, Path(f'{zip_path}.sig'))
 
     return args
 
@@ -196,14 +180,12 @@ def run(args: argparse.Namespace, temp_dir: Path):
     need_ext_fs: set[str] = set()
     need_sepolicies = False
 
-    for name, constructor in modules.all_modules().items():
-        zip_path: Path | None = getattr(args, f'module_{name}')
-        sig_path: Path | None = getattr(args, f'module_{name}_sig')
-
-        if zip_path is None or sig_path is None:
+    for module_type in modules.all_modules():
+        try:
+            module = module_type(args)
+        except modules.MissingArgs:
             continue
 
-        module = constructor(zip_path, sig_path)
         inject_modules.append(module)
 
         requirements = module.requirements()

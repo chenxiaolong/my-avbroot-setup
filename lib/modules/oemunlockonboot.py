@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: 2024-2025 Andrew Gunnerson
+# SPDX-FileCopyrightText: 2024-2026 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
+import argparse
 from collections.abc import Iterable
 import logging
 from pathlib import Path
@@ -17,12 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 class OEMUnlockOnBootModule(Module):
-    def __init__(self, zip: Path, sig: Path) -> None:
-        super().__init__()
+    NAME: str = 'oemunlockonboot'
 
-        modules.verify_ssh_sig(zip, sig, modules.SSH_PUBLIC_KEY_CHENXIAOLONG)
+    @classmethod
+    @override
+    def add_args(cls, parser: argparse.ArgumentParser):
+        modules.add_signed_module_args(parser, cls.NAME)
 
-        self.zip: Path = zip
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.zip: Path = modules.get_signed_module_args(
+            args,
+            self.NAME,
+            modules.SSH_PUBLIC_KEY_CHENXIAOLONG,
+        )
 
     @override
     def requirements(self) -> ModuleRequirements:
