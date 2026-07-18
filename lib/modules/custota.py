@@ -14,6 +14,7 @@ from lib import modules
 from lib.filesystem import CpioFs, ExtFs
 from lib.linux import linux_android_abi, linux_run
 from lib.modules import Module, ModuleRequirements
+from lib.modules.cil_rules import get_cil_rules
 
 
 logger = logging.getLogger(__name__)
@@ -66,22 +67,40 @@ class CustotaModule(Module):
                     if compatible_sepolicy and not sepolicy.exists():
                         logger.warning(f'SELinux policy does not exist: {sepolicy}')
                         continue
-                    
+
                     logger.info(f'Adding Custota SELinux rules: {sepolicy}')
 
                     linux_run(
                         [
                             f_temp.name,
-                            '--source', sepolicy,
-                            '--target', sepolicy,
+                            '--source',
+                            sepolicy,
+                            '--target',
+                            sepolicy,
                         ],
                         inputs=[f_temp.name, sepolicy],
                         outputs=[sepolicy],
                     )
 
             # Append seapp_contexts to all relevant partitions
-            modules.append_seapp_contexts(z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy)
-        
+            modules.append_seapp_contexts(
+                z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy
+            )
+
+        # Fall back to patching CIL sources on ROMs that do not ship a
+        # precompiled SELinux policy.
+        if compatible_sepolicy and not sepolicies:
+            logger.info('No precompiled sepolicy found, patching CIL files directly')
+            cil_rules = get_cil_rules('custota')
+
+            for partition in ['vendor', 'odm']:
+                modules.get_cil_rules_for_partition(
+                    ext_fs,
+                    partition,
+                    cil_rules,
+                    marker='; Added by my-avbroot-setup: custota',
+                )
+
         # Patch vendor/odm CIL files with ueventd firmware rules for persistence
         # This fixes bootloops caused by LineageOS recompiling policies during Custota updates
         if compatible_sepolicy:

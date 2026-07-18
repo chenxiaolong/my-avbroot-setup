@@ -2,6 +2,22 @@
 
 > **Authoritative copy.** This document lives in the fork repo because it describes *this repo's* delta against upstream. PixeneOS links here from `docs/tickets/ROMCOMPAT-1.md`, `docs/tickets/META-3.md`, and `docs/planning/decisions/ADR-0002-compatible-fork-of-my-avbroot-setup.md`.
 
+## Rebase status — 2026-07-18
+
+`master` has been rebased onto upstream `e4f80bb` (`msd.py: Include
+sysconfig XML files`). The rebase preserves upstream's Linux-executable-over-ADB
+support, init-script user/group fields, Custota cleanup, and MSD sysconfig XML
+handling. The fork's final roll-up commit was reconstructed without its
+formatter churn or raw-argument log line, while retaining the CIL fallback and
+the other fork-only compatibility behavior below. Direct CIL patches now use
+module-specific idempotency markers so Custota and MSD can be enabled together.
+
+The commit IDs and line counts in the analysis below describe the historical
+pre-rebase baseline. They remain useful provenance for the hunk decisions, but
+are not current branch topology.
+
+## Historical baseline
+
 **Fork:** `0cwa/my-avbroot-setup` at `91e49bc255672c98bf92d7d747f7b0cf12e01a80` (tip of `master`)
 **Upstream:** `chenxiaolong/my-avbroot-setup` at `e59576e` (`README.md: Clarify that license is GPLv3 only`)
 **Merge-base:** `8413918` (`Update pydantic for compatibility to python 3.14.0`)

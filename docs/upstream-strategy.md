@@ -43,6 +43,10 @@ Everything else either belongs upstream (and will be PR'd separately) or should 
 5. Force-push `master` with `--force-with-lease`.
 6. PixeneOS pins this fork by commit SHA (see PixeneOS `src/declarations.sh` `VERSION[AVBROOT_SETUP]`); update that pin in a PixeneOS PR once the rebase is verified.
 
+The latest completed rebase was on 2026-07-18 onto upstream `e4f80bb`. See
+[`upstream-disposition.md`](./upstream-disposition.md#rebase-status--2026-07-18)
+for the integration notes.
+
 ## Upstream PR cadence
 
 PRs are opened one at a time, smallest and least-opinionated first. The current sequencing is in [`upstream-prs/`](./upstream-prs/):

@@ -15,6 +15,7 @@ from lib.filesystem import CpioFs, ExtFs
 from lib.initscript import InitScript
 from lib.linux import linux_android_abi, linux_run
 from lib.modules import Module, ModuleRequirements
+from lib.modules.cil_rules import get_cil_rules
 
 
 logger = logging.getLogger(__name__)
@@ -79,23 +80,43 @@ class MSDModule(Module):
                         [
                             f_temp.name,
                             'sepatch',
-                            '--source', sepolicy,
-                            '--target', sepolicy,
+                            '--source',
+                            sepolicy,
+                            '--target',
+                            sepolicy,
                         ],
                         inputs=[f_temp.name, sepolicy],
                         outputs=[sepolicy],
                     )
 
             # Append seapp_contexts to all relevant partitions
-            modules.append_seapp_contexts(z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy)
+            modules.append_seapp_contexts(
+                z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy
+            )
+
+        # Fall back to patching CIL sources on ROMs that do not ship a
+        # precompiled SELinux policy.
+        if compatible_sepolicy and not sepolicies:
+            logger.info('No precompiled sepolicy found, patching CIL files directly')
+            cil_rules = get_cil_rules('msd')
+
+            for partition in ['vendor', 'odm']:
+                modules.get_cil_rules_for_partition(
+                    ext_fs,
+                    partition,
+                    cil_rules,
+                    marker='; Added by my-avbroot-setup: msd',
+                )
 
         InitScript(
             name='msd_daemon',
             command=[
                 '/system/bin/msd-tool',
                 'daemon',
-                '--log-target', 'logcat',
-                '--log-level', 'debug',
+                '--log-target',
+                'logcat',
+                '--log-level',
+                'debug',
             ],
             class_='main',
             user='system',
