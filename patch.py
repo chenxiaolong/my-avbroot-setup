@@ -148,6 +148,11 @@ def parse_args():
         action='store_true',
         help='Skip creating Custota csig file and update JSON file',
     )
+    parser.add_argument(
+        '--compatible-sepolicy',
+        action='store_true',
+        help='Change sepolicy files to allow patching other selinux partitions and don\'t fail if selinux is missing.',
+    )
 
     for module_type in modules.all_modules():
         module_type.add_args(parser)
@@ -203,6 +208,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
     if need_sepolicies:
         need_boot_fs.add('vendor_boot')
         need_ext_fs.add('vendor')
+        if args.compatible_sepolicy:
+            need_ext_fs.add('odm')
 
     # Verify OTA.
     external.verify_ota(args.input, args.verify_public_key_avb, args.verify_cert_ota)
@@ -241,29 +248,70 @@ def run(args: argparse.Namespace, temp_dir: Path):
 
         ext_fs[name] = ExtFs(info=info, tree=paths.tree, contexts=[])
 
-    # Parse SELinux label mappings for use when creating new entries.
+    # Parse SELinux label mappings for use when creating new entries. Prefer
+    # partition-specific contexts, which must take precedence over platform
+    # contexts, and fall back to platform contexts when no partition mapping is
+    # present.
     if ext_fs:
-        contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
-            'system' / 'etc' / 'selinux' / 'plat_file_contexts')
+        plat_contexts = filesystem.load_file_contexts(
+            ext_fs['system'].tree
+            / 'system'
+            / 'etc'
+            / 'selinux'
+            / 'plat_file_contexts'
+        )
 
-        for _, fs in ext_fs.items():
-            fs.contexts = contexts
+        for partition_name, fs in ext_fs.items():
+            partition_contexts_file = (
+                fs.tree
+                / partition_name
+                / 'etc'
+                / 'selinux'
+                / f'{partition_name}_file_contexts'
+            )
+
+            if partition_contexts_file.exists():
+                partition_contexts = filesystem.load_file_contexts(
+                    partition_contexts_file
+                )
+                fs.contexts = partition_contexts + plat_contexts
+            else:
+                fs.contexts = plat_contexts
 
     # We only update the precompiled policies and leave the CIL policies alone.
     # Since we're starting from a (hopefully) properly built Android build, we
     # should never run into a situation where the precompiled sepolicy is out of
     # date and needs to be recompiled from the CIL files during boot.
     if need_sepolicies:
-        selinux_policies = [
-            boot_fs['vendor_boot'].tree / 'sepolicy',
-            ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
-        ]
+        selinux_policies = []
+
+        vendor_boot_sepolicy = boot_fs['vendor_boot'].tree / 'sepolicy'
+        if vendor_boot_sepolicy.exists():
+            selinux_policies.append(vendor_boot_sepolicy)
+
+        vendor_sepolicy = (
+            ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy'
+        )
+        if vendor_sepolicy.exists():
+            selinux_policies.append(vendor_sepolicy)
+
+        if args.compatible_sepolicy and 'odm' in ext_fs:
+            odm_sepolicy = (
+                ext_fs['odm'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy'
+            )
+            if odm_sepolicy.exists():
+                selinux_policies.append(odm_sepolicy)
     else:
         selinux_policies = []
 
     # Inject modules.
     for module in inject_modules:
-        module.inject(boot_fs, ext_fs, selinux_policies)
+        module.inject(
+            boot_fs,
+            ext_fs,
+            selinux_policies,
+            compatible_sepolicy=args.compatible_sepolicy,
+        )
 
     # Repack ext filesystem images.
     for name, fs in ext_fs.items():
