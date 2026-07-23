@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
-from typing import Annotated, BinaryIO, ClassVar, Literal, TextIO, override
+from typing import Annotated, BinaryIO, ClassVar, Literal, TextIO
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
