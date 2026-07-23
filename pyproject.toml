@@ -1,0 +1,10 @@
+[project]
+name = "my-avbroot-setup"
+version = "0.1.0"
+description = "My personal avbroot setup for my Android devices"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.12.0",
+    "tomlkit>=0.13.2",
+]
