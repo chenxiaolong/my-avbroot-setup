@@ -83,6 +83,12 @@ I could accomplish the exact same result by adding the apps I care about to the 
 
 Apps that do these things don't remain installed on my devices :)
 
+## Contributing
+
+([AI policy](https://github.com/chenxiaolong/chenxiaolong/blob/master/AI_POLICY.md))
+
+Bug fix pull requests are welcome! However, I generally don't accept any other contributions because this repo is specific to my personal setup.
+
 ## License
 
 This repo is licensed under GPL-3.0-only. Please see [`LICENSE`](./LICENSE) for the full license text.
