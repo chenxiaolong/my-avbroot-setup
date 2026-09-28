@@ -16,9 +16,44 @@ import tomlkit
 from lib import external, modules
 from lib import filesystem
 from lib.filesystem import CpioFs, CpioInfo, ExtFs, ExtInfo
+from lib.modules.registry import (
+    INTERNAL_ADAPTERS,
+    LOCKED_ADAPTERS,
+    locked_adapter_factories,
+)
+from lib.modules.catalog import load_catalog
+from lib.modules.report import (
+    AdapterPatchResult,
+    build_patch_report,
+    write_patch_report,
+)
+from lib.modules.verified import (
+    VerifiedSelection,
+    construct_locked_adapters,
+    open_verified_selection,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+_LOCKED_ARGUMENT_NAMES = (
+    'module_lock',
+    'module_profile',
+    'module_cache',
+    'patch_report',
+)
+
+
+def _locked_arguments(args: argparse.Namespace) -> tuple[object | None, ...]:
+    return tuple(getattr(args, name, None) for name in _LOCKED_ARGUMENT_NAMES)
+
+
+def _locked_arguments_are_complete(args: argparse.Namespace) -> bool:
+    values = _locked_arguments(args)
+    return not any(value is not None for value in values) or all(
+        value is not None for value in values
+    )
 
 
 @dataclasses.dataclass
@@ -144,15 +179,76 @@ def parse_args():
         help='Extra argument to pass to `avbroot ota patch`',
     )
     parser.add_argument(
+        '--secondary-output',
+        type=Path,
+        help=(
+            'Optional second output OTA generated from the same prepared '
+            'replacement images'
+        ),
+    )
+    parser.add_argument(
+        '--secondary-patch-arg',
+        action='append',
+        help='Extra argument for the secondary `avbroot ota patch` invocation',
+    )
+    parser.add_argument(
         '--skip-custota-tool',
         action='store_true',
         help='Skip creating Custota csig file and update JSON file',
+    )
+    parser.add_argument(
+        '--compatible-sepolicy',
+        action='store_true',
+        help='Change sepolicy files to allow patching other selinux partitions and don\'t fail if selinux is missing.',
+    )
+    parser.add_argument(
+        '--tool-runner-prefix-json',
+        dest='_tool_runner_prefix_json',
+        metavar='JSON',
+        help=(
+            'Exact JSON argv prefix for an authenticated external-tool runner; '
+            'the default executes legacy bare tool names'
+        ),
     )
 
     for module_type in modules.all_modules():
         module_type.add_args(parser)
 
+    # Keep this separate from the legacy per-module options above.  Locked
+    # adapters are selected only by a canonical local profile and lock.
+    parser.add_argument(
+        '--module-lock',
+        type=Path,
+        help='Canonical artifact lock for locked native adapters',
+    )
+    parser.add_argument(
+        '--module-profile',
+        type=Path,
+        help='Local capability and module-selection profile',
+    )
+    parser.add_argument(
+        '--module-cache',
+        type=Path,
+        help='Content-addressed cache containing all locked artifacts',
+    )
+    parser.add_argument(
+        '--patch-report',
+        type=Path,
+        help='Atomic deterministic report for locked adapter injection',
+    )
+
     args = parser.parse_args()
+
+    raw_tool_runner_prefix = args._tool_runner_prefix_json
+    del args._tool_runner_prefix_json
+    try:
+        args.tool_runner_prefix = (
+            external.parse_tool_runner_prefix_json(raw_tool_runner_prefix)
+            if raw_tool_runner_prefix is not None
+            else None
+        )
+    except ValueError:
+        parser.error('--tool-runner-prefix-json is invalid')
 
     if args.output is None:
         args.output = Path(f'{args.input}.patched')
@@ -160,10 +256,64 @@ def parse_args():
     if args.patch_arg is None:
         args.patch_arg = ['--rootless']
 
+    if args.secondary_patch_arg is None:
+        args.secondary_patch_arg = []
+
+    if args.secondary_output is not None:
+        if not args.skip_custota_tool:
+            parser.error('--secondary-output requires --skip-custota-tool')
+        if not args.secondary_patch_arg:
+            parser.error(
+                '--secondary-output requires at least one --secondary-patch-arg'
+            )
+        if args.secondary_output == args.output:
+            parser.error('--secondary-output must differ from --output')
+    elif args.secondary_patch_arg:
+        parser.error('--secondary-patch-arg requires --secondary-output')
+
+    if not _locked_arguments_are_complete(args):
+        parser.error(
+            '--module-lock, --module-profile, --module-cache, and '
+            '--patch-report must be supplied together'
+        )
     return args
 
 
-def run(args: argparse.Namespace, temp_dir: Path):
+def _patch_output_plans(
+    args: argparse.Namespace,
+) -> tuple[tuple[Path, list[str]], ...]:
+    plans = [(args.output, list(args.patch_arg))]
+    secondary_output = getattr(args, 'secondary_output', None)
+    if secondary_output is not None:
+        secondary_patch_arg = list(getattr(args, 'secondary_patch_arg', ()))
+        plans.append((secondary_output, secondary_patch_arg))
+    return tuple(plans)
+
+
+def _patch_ota_outputs(
+    args: argparse.Namespace,
+    sign_key_avb: external.SigningKey,
+    sign_key_ota: external.SigningKey,
+    replacements: dict[str, Path],
+) -> None:
+    for output, patch_args in _patch_output_plans(args):
+        external.patch_ota(
+            args.input,
+            output,
+            sign_key_avb,
+            sign_key_ota,
+            args.sign_cert_ota,
+            replacements,
+            patch_args,
+        )
+
+
+def _run(
+    args: argparse.Namespace,
+    temp_dir: Path,
+    locked_selection: VerifiedSelection | None,
+    locked_adapters: tuple[tuple[str, modules.Module], ...],
+):
     sign_key_avb = external.SigningKey(
         args.sign_key_avb,
         args.pass_avb_env_var,
@@ -175,18 +325,26 @@ def run(args: argparse.Namespace, temp_dir: Path):
         args.pass_ota_file,
     )
 
-    inject_modules: list[modules.Module] = []
+    inject_modules: list[tuple[str | None, modules.Module]] = []
     need_boot_fs: set[str] = set()
     need_ext_fs: set[str] = set()
     need_sepolicies = False
 
     for module_type in modules.all_modules():
         try:
-            module = module_type(args)
+            module = module_type.from_args(args)
         except modules.MissingArgs:
             continue
 
-        inject_modules.append(module)
+        inject_modules.append((None, module))
+
+        requirements = module.requirements()
+        need_boot_fs |= requirements.boot_images
+        need_ext_fs |= requirements.ext_images
+        need_sepolicies |= requirements.selinux_patching
+
+    for module_id, module in locked_adapters:
+        inject_modules.append((module_id, module))
 
         requirements = module.requirements()
         need_boot_fs |= requirements.boot_images
@@ -203,6 +361,8 @@ def run(args: argparse.Namespace, temp_dir: Path):
     if need_sepolicies:
         need_boot_fs.add('vendor_boot')
         need_ext_fs.add('vendor')
+        if args.compatible_sepolicy:
+            need_ext_fs.add('odm')
 
     # Verify OTA.
     external.verify_ota(args.input, args.verify_public_key_avb, args.verify_cert_ota)
@@ -241,29 +401,86 @@ def run(args: argparse.Namespace, temp_dir: Path):
 
         ext_fs[name] = ExtFs(info=info, tree=paths.tree, contexts=[])
 
-    # Parse SELinux label mappings for use when creating new entries.
+    # Parse SELinux label mappings for use when creating new entries. Prefer
+    # partition-specific contexts, which must take precedence over platform
+    # contexts, and fall back to platform contexts when no partition mapping is
+    # present.
     if ext_fs:
-        contexts = filesystem.load_file_contexts(ext_fs['system'].tree /
-            'system' / 'etc' / 'selinux' / 'plat_file_contexts')
+        plat_contexts = filesystem.load_file_contexts(
+            ext_fs['system'].tree
+            / 'system'
+            / 'etc'
+            / 'selinux'
+            / 'plat_file_contexts'
+        )
 
-        for _, fs in ext_fs.items():
-            fs.contexts = contexts
+        for partition_name, fs in ext_fs.items():
+            partition_contexts_file = (
+                fs.tree
+                / partition_name
+                / 'etc'
+                / 'selinux'
+                / f'{partition_name}_file_contexts'
+            )
+
+            if partition_contexts_file.exists():
+                partition_contexts = filesystem.load_file_contexts(
+                    partition_contexts_file
+                )
+                fs.contexts = partition_contexts + plat_contexts
+            else:
+                fs.contexts = plat_contexts
 
     # We only update the precompiled policies and leave the CIL policies alone.
     # Since we're starting from a (hopefully) properly built Android build, we
     # should never run into a situation where the precompiled sepolicy is out of
     # date and needs to be recompiled from the CIL files during boot.
     if need_sepolicies:
-        selinux_policies = [
-            boot_fs['vendor_boot'].tree / 'sepolicy',
-            ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy',
-        ]
+        selinux_policies = []
+
+        vendor_boot_sepolicy = boot_fs['vendor_boot'].tree / 'sepolicy'
+        if vendor_boot_sepolicy.exists():
+            selinux_policies.append(vendor_boot_sepolicy)
+
+        vendor_sepolicy = (
+            ext_fs['vendor'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy'
+        )
+        if vendor_sepolicy.exists():
+            selinux_policies.append(vendor_sepolicy)
+
+        if args.compatible_sepolicy and 'odm' in ext_fs:
+            odm_sepolicy = (
+                ext_fs['odm'].tree / 'etc' / 'selinux' / 'precompiled_sepolicy'
+            )
+            if odm_sepolicy.exists():
+                selinux_policies.append(odm_sepolicy)
     else:
         selinux_policies = []
 
     # Inject modules.
-    for module in inject_modules:
-        module.inject(boot_fs, ext_fs, selinux_policies)
+    locked_results: list[tuple[str, AdapterPatchResult]] = []
+    for module_id, module in inject_modules:
+        result = module.inject(
+            boot_fs,
+            ext_fs,
+            selinux_policies,
+            compatible_sepolicy=args.compatible_sepolicy,
+        )
+        if module_id is not None:
+            if not isinstance(result, AdapterPatchResult):
+                raise RuntimeError(
+                    f'Locked adapter did not return a patch result: {module_id}'
+                )
+            locked_results.append((module_id, result))
+
+    # Validate the complete report (including cross-adapter output collisions)
+    # before repacking images or creating the output OTA.  The finished report
+    # is written only after all output work succeeds.
+    locked_report = (
+        build_patch_report(locked_selection, tuple(locked_results))
+        if locked_selection is not None
+        else None
+    )
 
     # Repack ext filesystem images.
     for name, fs in ext_fs.items():
@@ -286,15 +503,18 @@ def run(args: argparse.Namespace, temp_dir: Path):
         external.pack_boot(paths.raw_image, paths.unpacked)
         external.pack_avb(paths.image, paths.unpacked, sign_key_avb, False)
 
-    # Patch OTA.
-    external.patch_ota(
-        args.input,
-        args.output,
+    # Patch one or two OTA outputs from the same prepared replacement images.
+    # The secondary output path intentionally reuses all expensive verification,
+    # extraction, module injection, filesystem repacking, and AVB repacking work.
+    replacements = {
+        name: images_dir / f'{name}.img'
+        for name in boot_fs | ext_fs
+    }
+    _patch_ota_outputs(
+        args,
         sign_key_avb,
         sign_key_ota,
-        args.sign_cert_ota,
-        {name: images_dir / f'{name}.img' for name in boot_fs | ext_fs},
-        args.patch_arg,
+        replacements,
     )
 
     if not args.skip_custota_tool:
@@ -305,6 +525,46 @@ def run(args: argparse.Namespace, temp_dir: Path):
         codename = get_ota_metadata(args.output)['pre-device']
         update_info = args.output.parent / f'{codename}.json'
         external.generate_update_info(update_info, args.output.name)
+
+    if locked_report is not None:
+        write_patch_report(
+            args.patch_report,
+            locked_report,
+        )
+
+
+def run(args: argparse.Namespace, temp_dir: Path):
+    """Prepare every locked adapter before any OTA verification or mutation."""
+
+    external.configure_tool_runner(
+        getattr(args, 'tool_runner_prefix', None),
+        signing_environment_names=(
+            getattr(args, 'pass_avb_env_var', None),
+            getattr(args, 'pass_ota_env_var', None),
+        ),
+    )
+
+    if not _locked_arguments_are_complete(args):
+        raise ValueError(
+            'locked module arguments must be supplied as one complete set'
+        )
+
+    if getattr(args, 'module_lock', None) is None:
+        return _run(args, temp_dir, None, ())
+
+    catalog = load_catalog(registrations=INTERNAL_ADAPTERS + LOCKED_ADAPTERS)
+    selection = open_verified_selection(
+        catalog,
+        args.module_lock,
+        args.module_profile,
+        args.module_cache,
+    )
+    with selection:
+        adapters = construct_locked_adapters(
+            selection,
+            locked_adapter_factories(),
+        )
+        return _run(args, temp_dir, selection, adapters)
 
 
 def main():

@@ -14,13 +14,13 @@ import zipfile
 from lib import modules
 from lib.filesystem import CpioFs, ExtFs
 from lib.linux import linux_android_abi, linux_run
-from lib.modules import Module, ModuleRequirements
+from lib.modules import LegacyCliModule, ModuleRequirements
 
 
 logger = logging.getLogger(__name__)
 
 
-class CustotaModule(Module):
+class CustotaModule(LegacyCliModule):
     NAME: str = 'custota'
 
     @classmethod
@@ -37,6 +37,11 @@ class CustotaModule(Module):
 
         self.abi: str = linux_android_abi()
 
+    @classmethod
+    @override
+    def from_args(cls, args: argparse.Namespace) -> 'CustotaModule':
+        return cls(args)
+
     @override
     def requirements(self) -> ModuleRequirements:
         return ModuleRequirements(
@@ -51,8 +56,10 @@ class CustotaModule(Module):
         boot_fs: dict[str, CpioFs],
         ext_fs: dict[str, ExtFs],
         sepolicies: Iterable[Path],
+        compatible_sepolicy: bool = False,
     ) -> None:
         logger.info(f'Injecting Custota: {self.zip}')
+        sepolicies = list(sepolicies)
 
         system_fs = ext_fs['system']
 
@@ -71,24 +78,35 @@ class CustotaModule(Module):
                 f_temp.close()
 
                 for sepolicy in sepolicies:
+                    if compatible_sepolicy and not sepolicy.exists():
+                        logger.warning(f'SELinux policy does not exist: {sepolicy}')
+                        continue
+
                     logger.info(f'Adding Custota SELinux rules: {sepolicy}')
 
                     linux_run(
                         [
                             f_temp.name,
-                            '--source', sepolicy,
-                            '--target', sepolicy,
+                            '--source',
+                            sepolicy,
+                            '--target',
+                            sepolicy,
                         ],
                         inputs=[f_temp.name, sepolicy],
                         outputs=[sepolicy],
                     )
 
-            seapp = 'system/etc/selinux/plat_seapp_contexts'
-            logger.info(f'Adding Custota seapp context: {seapp}')
+            # Append seapp_contexts to all relevant partitions
+            modules.append_seapp_contexts(
+                z, 'plat_seapp_contexts', ext_fs, compatible_sepolicy
+            )
 
-            with (
-                z.open('plat_seapp_contexts', 'r') as f_in,
-                system_fs.open(seapp, 'ab') as f_out,
-            ):
-                shutil.copyfileobj(f_in, f_out)
-                f_out.write(b'\n')
+        # Fall back to patching CIL sources on ROMs that do not ship a
+        # precompiled SELinux policy.
+        if compatible_sepolicy and not sepolicies:
+            modules.patch_vendor_odm_cil_fallback(ext_fs, 'custota')
+
+        # Patch vendor/odm CIL files with ueventd firmware rules for persistence
+        # This fixes bootloops caused by LineageOS recompiling policies during Custota updates
+        if compatible_sepolicy:
+            modules.patch_vendor_cil_for_ueventd(ext_fs, True)

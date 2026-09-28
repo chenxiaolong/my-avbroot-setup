@@ -3,18 +3,200 @@
 
 from collections.abc import Iterable, Sequence
 import dataclasses
+import json
 import logging
+import os
 from pathlib import Path
 import subprocess
+import unicodedata
 
 
 logger = logging.getLogger(__name__)
 
 
+_ALLOWED_TOOLS = frozenset({'avbroot', 'afsr', 'custota-tool'})
+_MAX_PREFIX_ARGUMENTS = 32
+_MAX_TOOL_ARGUMENTS = 4096
+_MAX_ARGUMENT_LENGTH = 4096
+_MAX_COMMAND_LENGTH = 131072
+_UNSAFE_ENVIRONMENT_NAMES = frozenset({
+    'BASH_ENV',
+    'ENV',
+    'GLIBC_TUNABLES',
+    'PYTHONHOME',
+    'PYTHONINSPECT',
+    'PYTHONPATH',
+    'PYTHONSTARTUP',
+    'PYTHONWARNINGS',
+    'RUST_BACKTRACE',
+    'RUST_LIB_BACKTRACE',
+    'RUST_LOG',
+})
+
+
+def _validate_arguments(
+    values: Sequence[str | os.PathLike[str]],
+    *,
+    limit: int,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)) or len(values) > limit:
+        raise ValueError('invalid external tool argument sequence')
+
+    result: list[str] = []
+    total = 0
+    for value in values:
+        if isinstance(value, bytes):
+            raise ValueError('external tool arguments must be text')
+        try:
+            item = os.fspath(value)
+        except TypeError as e:
+            raise ValueError('external tool arguments must be text') from e
+        if not isinstance(item, str):
+            raise ValueError('external tool arguments must be text')
+        if (not allow_empty and not item) or '\0' in item:
+            raise ValueError('invalid external tool argument')
+        if len(item) > _MAX_ARGUMENT_LENGTH:
+            raise ValueError('external tool argument is too long')
+        total += len(item) + 1
+        if total > _MAX_COMMAND_LENGTH:
+            raise ValueError('external tool command is too long')
+        result.append(item)
+    return tuple(result)
+
+
+def parse_tool_runner_prefix_json(value: str) -> tuple[str, ...]:
+    """Parse an exact argv prefix without shell tokenization."""
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError('tool runner prefix must be a JSON string array') from e
+    if not isinstance(parsed, list) or any(
+        not isinstance(item, str) for item in parsed
+    ):
+        raise ValueError('tool runner prefix must be a JSON string array')
+    return _validate_prefix(parsed)
+
+
+def _validate_prefix(
+    values: Sequence[str | os.PathLike[str]],
+) -> tuple[str, ...]:
+    prefix = _validate_arguments(
+        values,
+        limit=_MAX_PREFIX_ARGUMENTS,
+        allow_empty=False,
+    )
+    if not prefix or not Path(prefix[0]).is_absolute():
+        raise ValueError('tool runner executable must be an absolute path')
+    for item in prefix:
+        if item == '--' or any(
+            unicodedata.category(character) == 'Cc'
+            for character in item
+        ):
+            raise ValueError('invalid external tool runner prefix argument')
+    return prefix
+
+
+def _sanitized_environment() -> dict[str, str]:
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not _is_unsafe_environment_name(name)
+    }
+
+
+def _is_unsafe_environment_name(name: str) -> bool:
+    return name in _UNSAFE_ENVIRONMENT_NAMES or name.startswith(
+        ('LD_', 'DYLD_')
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class ToolRunner:
+    """Execute allowlisted tools directly or through an exact argv prefix."""
+
+    prefix: tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if self.prefix is not None:
+            validated = _validate_prefix(self.prefix)
+            object.__setattr__(self, 'prefix', validated)
+
+    def run(
+        self,
+        tool: str,
+        arguments: Sequence[str | os.PathLike[str]],
+        *,
+        cwd: Path | None = None,
+    ) -> None:
+        if tool not in _ALLOWED_TOOLS:
+            raise ValueError(f'unsupported external tool: {tool!r}')
+        checked = _validate_arguments(
+            arguments,
+            limit=_MAX_TOOL_ARGUMENTS,
+            allow_empty=True,
+        )
+        command = (
+            [tool, *checked]
+            if self.prefix is None
+            else [*self.prefix, tool, '--', *checked]
+        )
+        if sum(len(item) + 1 for item in command) > _MAX_COMMAND_LENGTH:
+            raise ValueError('external tool command is too long')
+        kwargs: dict[str, object] = {}
+        if cwd is not None:
+            kwargs['cwd'] = cwd
+        if self.prefix is not None:
+            kwargs['env'] = _sanitized_environment()
+        subprocess.check_call(command, **kwargs)
+
+
+_tool_runner = ToolRunner()
+
+
+def configure_tool_runner(
+    prefix: Sequence[str] | None,
+    *,
+    signing_environment_names: Iterable[str | None] = (),
+) -> None:
+    """Select legacy execution or a validated authenticated runner prefix."""
+    global _tool_runner
+    # Keep bare-tool execution unchanged for compatibility. Environment
+    # sanitization deliberately applies only to the authenticated prefixed
+    # runner and must not be broadened here.
+    if prefix is not None:
+        for name in signing_environment_names:
+            if name is not None and _is_unsafe_environment_name(name):
+                raise ValueError(
+                    'unsafe signing passphrase environment variable for '
+                    f'authenticated tool runner: {name}'
+                )
+    _tool_runner = ToolRunner(tuple(prefix) if prefix is not None else None)
+
+
+def run_tool(
+    tool: str,
+    arguments: Sequence[str | os.PathLike[str]],
+    *,
+    cwd: Path | None = None,
+) -> None:
+    _tool_runner.run(tool, arguments, cwd=cwd)
+
+
+def _run_command(
+    command: Sequence[str | os.PathLike[str]],
+    *,
+    cwd: Path | None = None,
+) -> None:
+    if not command or not isinstance(command[0], str):
+        raise ValueError('external tool command must start with a tool name')
+    run_tool(command[0], command[1:], cwd=cwd)
+
+
 @dataclasses.dataclass
 class SigningKey:
     key: Path
-    pass_env: Path | None
+    pass_env: str | None
     pass_file: Path | None
 
 
@@ -34,7 +216,7 @@ def verify_ota(ota: Path, public_key_avb: Path | None, cert_ota: Path | None):
         cmd.append('--cert-ota')
         cmd.append(cert_ota)
 
-    subprocess.check_call(cmd)
+    _run_command(cmd)
 
 
 def unpack_ota(ota: Path, output_dir: Path, partitions: Iterable[str]):
@@ -50,7 +232,7 @@ def unpack_ota(ota: Path, output_dir: Path, partitions: Iterable[str]):
         cmd.append('--partition')
         cmd.append(partition)
 
-    subprocess.check_call(cmd)
+    _run_command(cmd)
 
 
 def patch_ota(
@@ -94,13 +276,13 @@ def patch_ota(
         cmd.append(k)
         cmd.append(v)
 
-    subprocess.check_call(cmd)
+    _run_command(cmd)
 
 
 def unpack_avb(image: Path, output_dir: Path):
     logger.info(f'Unpacking AVB image: {image}')
 
-    subprocess.check_call([
+    _run_command([
         'avbroot', 'avb', 'unpack',
         '--quiet',
         '--input', image.absolute(),
@@ -119,7 +301,7 @@ def pack_avb(
         'avbroot', 'avb', 'pack',
         '--quiet',
         '--output', image.absolute(),
-        '--key', key.key,
+        '--key', key.key.absolute(),
     ]
 
     if key.pass_env is not None:
@@ -127,18 +309,18 @@ def pack_avb(
         cmd.append(key.pass_env)
     elif key.pass_file is not None:
         cmd.append('--pass-file')
-        cmd.append(key.pass_file)
+        cmd.append(key.pass_file.absolute())
 
     if recompute_size:
         cmd.append('--recompute-size')
 
-    subprocess.check_call(cmd, cwd=input_dir)
+    _run_command(cmd, cwd=input_dir)
 
 
 def unpack_boot(image: Path, output_dir: Path):
     logger.info(f'Unpacking boot image: {image}')
 
-    subprocess.check_call([
+    _run_command([
         'avbroot', 'boot', 'unpack',
         '--quiet',
         '--input', image.absolute(),
@@ -148,7 +330,7 @@ def unpack_boot(image: Path, output_dir: Path):
 def pack_boot(image: Path, input_dir: Path):
     logger.info(f'Packing boot image: {image}')
 
-    subprocess.check_call([
+    _run_command([
         'avbroot', 'boot', 'pack',
         '--quiet',
         '--output', image.absolute(),
@@ -158,7 +340,7 @@ def pack_boot(image: Path, input_dir: Path):
 def unpack_cpio(archive: Path, output_dir: Path):
     logger.info(f'Unpacking CPIO archive: {archive}')
 
-    subprocess.check_call([
+    _run_command([
         'avbroot', 'cpio', 'unpack',
         '--quiet',
         '--input', archive.absolute(),
@@ -168,7 +350,7 @@ def unpack_cpio(archive: Path, output_dir: Path):
 def pack_cpio(archive: Path, input_dir: Path):
     logger.info(f'Packing CPIO archive: {archive}')
 
-    subprocess.check_call([
+    _run_command([
         'avbroot', 'cpio', 'pack',
         '--quiet',
         '--output', archive.absolute(),
@@ -178,7 +360,7 @@ def pack_cpio(archive: Path, input_dir: Path):
 def unpack_fs(image: Path, output_dir: Path):
     logger.info(f'Unpacking filesystem: {image}')
 
-    subprocess.check_call([
+    _run_command([
         'afsr', 'unpack',
         '--input', image.absolute(),
     ], cwd=output_dir)
@@ -187,7 +369,7 @@ def unpack_fs(image: Path, output_dir: Path):
 def pack_fs(image: Path, input_dir: Path):
     logger.info(f'Packing filesystem: {image}')
 
-    subprocess.check_call([
+    _run_command([
         'afsr', 'pack',
         '--output', image.absolute(),
     ], cwd=input_dir)
@@ -210,13 +392,13 @@ def generate_csig(ota: Path, key_ota: SigningKey, cert_ota: Path):
         cmd.append('--passphrase-file')
         cmd.append(key_ota.pass_file)
 
-    subprocess.check_call(cmd)
+    _run_command(cmd)
 
 
 def generate_update_info(update_info: Path, location: str):
     logger.info(f'Generating Custota update info: {update_info}')
 
-    subprocess.check_call([
+    _run_command([
         'custota-tool', 'gen-update-info',
         '--file', update_info,
         '--location', location,

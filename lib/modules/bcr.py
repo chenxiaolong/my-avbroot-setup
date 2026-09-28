@@ -1,36 +1,23 @@
 # SPDX-FileCopyrightText: 2024-2026 Andrew Gunnerson
 # SPDX-License-Identifier: GPL-3.0-only
 
-import argparse
 from collections.abc import Iterable
-import logging
 from pathlib import Path
+import logging
 from typing import override
 import zipfile
 
 from lib import modules
 from lib.filesystem import CpioFs, ExtFs
 from lib.initscript import InitScript
-from lib.modules import Module, ModuleRequirements
+from lib.modules import ModuleRequirements, SignedZipCliModule
 
 
 logger = logging.getLogger(__name__)
 
 
-class BCRModule(Module):
+class BCRModule(SignedZipCliModule):
     NAME: str = 'bcr'
-
-    @classmethod
-    @override
-    def add_args(cls, parser: argparse.ArgumentParser):
-        modules.add_signed_module_args(parser, cls.NAME)
-
-    def __init__(self, args: argparse.Namespace) -> None:
-        self.zip: Path = modules.get_signed_module_args(
-            args,
-            self.NAME,
-            modules.SSH_PUBLIC_KEY_CHENXIAOLONG,
-        )
 
     @override
     def requirements(self) -> ModuleRequirements:
@@ -46,6 +33,7 @@ class BCRModule(Module):
         boot_fs: dict[str, CpioFs],
         ext_fs: dict[str, ExtFs],
         sepolicies: Iterable[Path],
+        compatible_sepolicy: bool = False,
     ) -> None:
         logger.info(f'Injecting BCR: {self.zip}')
 

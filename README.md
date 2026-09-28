@@ -1,10 +1,18 @@
 # My avbroot setup
 
+> **Fork notice.** This repository is a compatible fork of [`chenxiaolong/my-avbroot-setup`](https://github.com/chenxiaolong/my-avbroot-setup) used by the [PixeneOS](https://github.com/0cwa/PixeneOS) build pipeline for LineageOS / non-Pixel ROM compatibility. The fork strategy and the per-hunk decomposition of its delta against upstream are documented in [`MAINTAINERS.md`](./MAINTAINERS.md) and [`docs/`](./docs/upstream-disposition.md). Upstream-bound PR drafts live under [`docs/upstream-prs/`](./docs/upstream-prs/).
+
 This repo describes my personal setup for modifying the OS on my Android devices.
 
 Unlike the norm in the Android modding community, I do not use runtime modifications and instead, prefer to modify the Android image directly. This eliminates the need for privileged code to live on writable storage and avoids giving potential malware a place to persist.
 
 This repo includes the script I use for modifying Android OTAs. Folks should probably not use the script as-is and instead, adapt it to their needs.
+
+Supported patch modules and their compatibility metadata are enumerated by the
+[declarative module catalog](./docs/module-catalog.md). Catalog entries remain
+metadata-only: they neither enable modules nor execute installer scripts.
+Modules can be selected explicitly with `--module-<name>` for unlocked
+workflows, or through patch.py's canonical locked profile/lock boundary.
 
 ## Requirements
 
@@ -20,10 +28,46 @@ This repo includes the script I use for modifying Android OTAs. Folks should pro
 * [AlterInstaller](https://github.com/chenxiaolong/AlterInstaller) (>= version 2.0)
 
 The `avbroot`, `afsr`, and `custota-tool` commands must exist in `PATH`.
+This legacy behavior remains the default. Integrators that authenticate those
+tools through a separate runner can instead pass an exact JSON argv prefix:
+
+```bash
+python3 patch.py \
+    --tool-runner-prefix-json \
+    '["/usr/bin/python3","/opt/pixene/bootstrap.py","--workdir","/var/tmp/pixene","run"]' \
+    --input ota.zip --output ota.patched.zip
+```
+
+For each external tool invocation, the helper appends the allowlisted tool
+name, a `--` separator, and the original arguments. The prefix executable must
+be an absolute path. No shell parsing is performed, and loader/debugging
+environment variables are removed before an authenticated runner starts.
 
 ## Usage
 
 Install [uv](https://docs.astral.sh/uv/) or manually set up a Python virtualenv.
+
+The staged module preparation CLI keeps catalog resolution, lock updates,
+artifact acquisition, verification, and archive inspection separate from OTA
+mutation:
+
+```bash
+python3 module-tool.py catalog list --format json
+python3 module-tool.py lock verify --lock locks/artifacts.lock.json
+python3 module-tool.py artifacts fetch \
+    --lock locks/artifacts.lock.json --cache .artifact-cache
+python3 module-tool.py artifacts verify \
+    --lock locks/artifacts.lock.json --cache .artifact-cache
+python3 module-tool.py resolve \
+    --profile profiles/lineage.toml --lock locks/artifacts.lock.json \
+    --format json
+```
+
+Normal builds consume checked-in locks and never resolve “latest” versions.
+Only the explicit `lock update <module>` command may use a reviewed provider
+for floating upstream metadata; this Phase 1 foundation intentionally has no
+such provider yet. See [the module-tool guide](./docs/module-tool.md) for the
+complete command contract and offline/security boundaries.
 
 Then, run the patch script:
 
