@@ -1,10 +1,10 @@
 name: Guarded source engine
 on:
   pull_request:
-    paths: ['tools/care-map/**', '.github/workflows/source-engine.yml']
+    paths: ['tools/care-map/**', 'tests/test_dev_care_map_runner.py', '.github/workflows/source-engine.yml']
   push:
     branches: [master]
-    paths: ['tools/care-map/**', '.github/workflows/source-engine.yml']
+    paths: ['tools/care-map/**', 'tests/test_dev_care_map_runner.py', '.github/workflows/source-engine.yml']
 permissions:
   contents: read
 jobs:
@@ -27,6 +27,12 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check uv
           uv sync --frozen
+      - name: Verify guarded runner boundaries
+        env:
+          MODOS_REPO: ${{ github.workspace }}/modos
+        run: |
+          test -f "${MODOS_REPO}/src/bootstrap_archive.py"
+          uv run python -m unittest tests.test_dev_care_map_runner -v
       - name: Build exact guarded source and run full upstream tests
         run: |
           mkdir -m 0700 .tmp modos/.tmp
@@ -41,7 +47,7 @@ jobs:
           import json, pathlib, subprocess
           data=json.loads(pathlib.Path('.tmp/runner-prefix.json').read_text())
           version=subprocess.check_output(data+['avbroot','--version'],text=True).strip()
-          assert version=='avbroot 3.35.0', version
+          assert version=='avbroot 3.37.1', version
           print(version)
           pathlib.Path('.tmp/guarded-engine/LICENSE').write_bytes(pathlib.Path('LICENSE').read_bytes())
           PY

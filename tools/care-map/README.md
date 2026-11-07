@@ -13,7 +13,7 @@ Rebuild in a new working checkout:
 ```sh
 git clone https://github.com/chenxiaolong/avbroot.git avbroot-candidate
 cd avbroot-candidate
-git checkout --detach 4d678ffe8955de49403e593960626dfa48bd0cce
+git checkout --detach 88362620a21377b160ae7500f64f144a2262a281
 git apply /path/to/this/tools/care-map/avbroot-runtime-care-map.patch
 cargo build --release --locked -p avbroot --no-default-features
 cargo test --locked -p avbroot --no-default-features
@@ -98,13 +98,17 @@ of default unit discovery to exercise empty homes and a tiny offline build:
 python3 tests/cold_source_toolchain_smoke.py --workdir /path/to/work/cold-rust-smoke
 ```
 
-## Upstream 3.35 source qualification
+## Upstream 3.37.1 source qualification
 
-The development source manifest now targets official avbroot 3.35.0 source.
+The development source manifest now targets official avbroot 3.37.1 source.
+It includes upstream 3.36 missing-metadata care-map handling, the 3.37 boot-image
+offset fix and 3.37.1 Magisk 31100 support with upstream dependency updates.
 The existing explicit-signer and runtime care-map patch is retained: requiring
 a key or digest rejects unsigned vbmeta headers, including chained verification.
-Official unpatched 3.35 still accepts an unsigned header when an expected key
-is supplied, and the OTA verifier shares that same verification function.
+The upstream verifier still permits unsigned headers when an expected key is
+supplied, and the OTA verifier shares that same verification function. The
+strict expected-map path continues rejecting unknown runtime identities, even
+though upstream legacy map generation now supports missing AVB properties.
 The official executable lock must not be promoted on the basis of this source
 build; source and vendor-signed executable authorization remain separate.
 
@@ -112,5 +116,17 @@ Use `build_and_run.py --validate-source --prepare-only` with the existing
 required directory arguments to run all upstream integration/unit/doc tests
 and the guarded-patch regressions before compiler cleanup. The source-engine
 CI runs this only when source inputs or its workflow change, then exercises the
-fresh binary through the authenticated runner. Historical 3.34.1 provenance
+fresh binary through the authenticated runner. Historical 3.34.1 provenance, the 3.35 qualification receipt
 and physical-candidate receipts remain historical evidence.
+
+The 3.37.1 source qualification is recorded in
+[`avbroot-3371-qualification.json`](avbroot-3371-qualification.json): the locked
+release build passed 71 unit/integration tests and 140 doctests, including both
+explicit unsigned-signer rejection cases and all six strict expected-map tests.
+The freshly built binary reported `avbroot 3.37.1` through the authenticated
+sealed runner. This qualification did not rerun signed OTA or device acceptance.
+
+The source-engine workflow also sets `MODOS_REPO` to its pinned ModOS checkout
+and runs the six existing guarded-runner boundary tests. For local runs, set
+`MODOS_REPO=/path/to/ModOS` to exercise these integration tests instead of
+skipping them when the historical workstation path is unavailable.
