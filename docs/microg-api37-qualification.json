@@ -31,11 +31,18 @@
     "repository": "LineageOS/android_frameworks_base",
     "revision": "1df617a1093e41562fd1f43f27de0cfb4af817e5",
     "files": {
-      "AndroidManifest.xml": "a662a4dc5a21d85fb1b0f52a2e020347bc0894bae07fc22453bef4e6ff6125ed",
-      "MicrogUtils.java": "c52987315799d22a5278d80d9a96229beaeb39656a9aedb06963d7e1f21ddc55",
-      "AppIdPermissionPolicy.kt": "73184247909eb358b26059cb01400254712f0308131393da8d6bd79abe360821",
-      "PackageAbiHelperImpl.java": "c4a4229e0631d417e4af967c5f9410683a67d88a50626fd2b48a8650d1014420"
-    }
+      "AndroidManifest.xml": "4135d6ba462b5495128d56233ba52a30d5f3a5ca868c23c99fa9dece15a8d410",
+      "MicrogUtils.java": "eae771c7003c1c6498f099a4a23b961b2d31a097a6e37972b2df89d5c473c0f9",
+      "AppIdPermissionPolicy.kt": "436a97398d1592d4a24a775030a523b53e2a65c354c656a4f742aaf52ac2336d",
+      "PackageAbiHelperImpl.java": "86a51f0e18345c76b6234cdede70f83e9cb3eef95192ef4729f309233bfea3d6"
+    },
+    "git_blob_sha1": {
+      "AndroidManifest.xml": "721e530887225553f7f5465c02eef8a511df5103",
+      "MicrogUtils.java": "71b32ff6bb24056b4dd3d49fa0e5d392d43dfa72",
+      "AppIdPermissionPolicy.kt": "8ba08f95f56494dffcd7ba7889a8e58d28084a88",
+      "PackageAbiHelperImpl.java": "639d02ca42b0d10447bba30b78fb32d1f12816ea"
+    },
+    "digest_scope": "SHA-256 of exact upstream Git blob bytes, independently checked against the Git blob SHA-1; no local text-serialization newline included."
   },
   "apks": [
     {
