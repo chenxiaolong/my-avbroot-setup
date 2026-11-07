@@ -30,7 +30,7 @@ architectures = ['any']
 
 [compatibility.roms.lineageos]
 status = 'experimental'
-reason = { code = 'lineage-validation-pending', message = 'LineageOS has restricted microG signature spoofing, but physical-device acceptance is still pending.' }
+reason = { code = 'lineage-api36-37-experimental', message = 'LineageOS API 36 and 37 are reviewed experimental build targets. API 37 has owner-reported repaired rootless boot; microG functional checks, Magisk boot and OTA persistence remain unverified.' }
 
 [compatibility.roms.grapheneos]
 status = 'incompatible'
@@ -42,7 +42,7 @@ product_priv_app = true
 custom_init_selinux = false
 abis = ['any']
 min_api = 36
-max_api = 36
+max_api = 37
 
 [capabilities.provides]
 root = []

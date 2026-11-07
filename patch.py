@@ -9,6 +9,7 @@ import logging
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import shutil
 import tempfile
@@ -93,20 +94,54 @@ class ExtImagePaths:
 
 
 def get_ota_metadata(ota: Path) -> dict[str, str]:
-    props: dict[str, str] = {}
-
+    """Read one bounded, unambiguous metadata record from an authenticated OTA."""
+    metadata_name = 'META-INF/com/android/metadata'
+    limit = 1024 * 1024
     with zipfile.ZipFile(ota, 'r') as z:
-        with z.open('META-INF/com/android/metadata', 'r') as f:
-            for line in f:
-                line = line.decode('UTF-8').strip()
+        entries = [entry for entry in z.infolist() if entry.filename == metadata_name]
+        if len(entries) != 1 or entries[0].is_dir():
+            raise ValueError('OTA must contain one metadata entry')
+        if not 0 < entries[0].file_size <= limit:
+            raise ValueError('OTA metadata is empty or too large')
+        with z.open(entries[0], 'r') as f:
+            data = f.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError('OTA metadata is too large')
 
-                key, delim, value = line.partition('=')
-                if not delim:
-                    raise ValueError(f'Bad OTA metadata line: {line!r}')
-
-                props[key] = value
-
+    props: dict[str, str] = {}
+    for line in data.decode('UTF-8').splitlines():
+        line = line.strip()
+        key, delim, value = line.partition('=')
+        if not delim or not key or key != key.strip():
+            raise ValueError(f'Bad OTA metadata line: {line!r}')
+        if key in props:
+            raise ValueError(f'Duplicate OTA metadata key: {key}')
+        props[key] = value
     return props
+
+
+def _require_microg_ota_api(
+    ota: Path,
+    selection: VerifiedSelection | None,
+) -> None:
+    """Bind microG's resolved API to signed metadata after OTA authentication.
+
+    This checks the archive's declared SDK, not runtime property loading or
+    device functionality. Never derive the SDK from a spoofed build fingerprint.
+    """
+    if selection is None or 'microg' not in selection.resolution.selected_modules:
+        return
+    expected_api = selection.resolution.profile.api_level
+    actual_api = get_ota_metadata(ota).get('post-sdk-level', '')
+    if not re.fullmatch(r'[1-9][0-9]{0,2}', actual_api):
+        raise ValueError('microG requires an unambiguous source/output OTA SDK')
+    if int(actual_api) != expected_api:
+        raise ValueError(
+            f'microG profile API {expected_api} differs from authenticated '
+            f'OTA SDK {actual_api}: {ota}'
+        )
+    logger.info('Authenticated OTA SDK %s matches the microG profile: %s',
+                actual_api, ota)
 
 
 def parse_args():
@@ -406,6 +441,10 @@ def _run(
     else:
         external.verify_ota(args.input, args.verify_public_key_avb, args.verify_cert_ota)
 
+    # The caller's profile must describe the authenticated source before any
+    # image preparation or injection. API metadata alone never authenticates it.
+    _require_microg_ota_api(args.input, locked_selection)
+
     # Unpack OTA.
     images_dir = temp_dir / 'images'
     if need_boot_fs or need_ext_fs:
@@ -589,6 +628,7 @@ def _run(
             )
         else:
             external.verify_ota(output, public_key_avb, args.sign_cert_ota)
+        _require_microg_ota_api(output, locked_selection)
 
     if not args.skip_custota_tool:
         # Generate Custota csig.
