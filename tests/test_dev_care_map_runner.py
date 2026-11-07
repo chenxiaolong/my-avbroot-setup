@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / 'tools' / 'care-map'
-MODOS = Path('/workspace/work/lineage-integration')
+MODOS = Path(os.environ.get('MODOS_REPO', '/workspace/work/lineage-integration'))
 
 
 def load(name):

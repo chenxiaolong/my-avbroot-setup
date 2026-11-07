@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index d2efd5d..9c00ab4 100644
+index 47867d1..610bf37 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -170,6 +170,7 @@ dependencies = [
@@ -24,7 +24,7 @@ index d2efd5d..9c00ab4 100644
  name = "keccak"
  version = "0.2.2"
 @@ -1617,6 +1624,19 @@ dependencies = [
-  "syn 3.0.7",
+  "syn 3.0.9",
  ]
  
 +[[package]]
@@ -111,7 +111,7 @@ index 6f7a9bf..cfd3e73 100644
 +of bypassing that trust comparison. Verification without a trust key retains
 +the existing ability to inspect unsigned images.
 diff --git a/avbroot/Cargo.toml b/avbroot/Cargo.toml
-index cf27ace..d1e868f 100644
+index 60af42b..1538b3e 100644
 --- a/avbroot/Cargo.toml
 +++ b/avbroot/Cargo.toml
 @@ -50,6 +50,7 @@ rsa = { version = "0.10.0-rc.19", features = ["sha1", "sha2"] }
@@ -398,7 +398,7 @@ index 82145cb..4be4432 100644
      #[arg(short, long, value_name = "FILE", value_parser)]
      pub input: PathBuf,
 diff --git a/avbroot/src/format/care_map.rs b/avbroot/src/format/care_map.rs
-index 90d0e12..68b8f0b 100644
+index d8f6508..ba74add 100644
 --- a/avbroot/src/format/care_map.rs
 +++ b/avbroot/src/format/care_map.rs
 @@ -3,7 +3,7 @@
@@ -429,7 +429,7 @@ index 90d0e12..68b8f0b 100644
      #[error("Partition not found in payload: {0}")]
      MissingPartition(String),
      #[error("No hash tree descriptor found in AVB header: {0}")]
-@@ -328,6 +333,174 @@ pub fn generate_care_map<'name, 'file>(
+@@ -326,6 +331,174 @@ pub fn generate_care_map<'name, 'file>(
      Ok(care_map)
  }
  
