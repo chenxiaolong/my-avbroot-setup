@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "scope": "Source and APK qualification for experimental LineageOS API 36/37 builds with authenticated archive SDK binding; no full device-runtime certification",
+  "release": {
+    "url": "https://github.com/microg/GmsCore/releases/tag/v0.3.17.252432",
+    "tag": "v0.3.17.252432",
+    "id": 398945651,
+    "published_at": "2026-09-29T10:37:35Z"
+  },
+  "tooling": {
+    "sdk_build_tools": "36.0.0",
+    "aapt_version": "Android Asset Packaging Tool, v0.2-13193326",
+    "apksigner_version": "0.9",
+    "source": "https://dl.google.com/android/repository/build-tools_r36_linux.zip",
+    "archive_bytes": 63737259,
+    "official_repository_sha1": "b0b6376977657e8ad9b969bacf4093601da2c6fb",
+    "archive_sha256": "5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b",
+    "repository_index": "https://dl.google.com/android/repository/repository2-1.xml",
+    "aapt_sha256": "c076aeeee8bd3ce58395a093747202265ab80c6c12e59358f598a30a81fde13b",
+    "apksigner_launcher_sha256": "b47549e373b895ce6ca620d0c7887e674d9615ffa837a86ac601dcfd04adb0f0",
+    "apksigner_jar_sha256": "3716d9311e55d2b0918a2fd9d54ba9e406c5f6abeea700b287f11259bc163dec"
+  },
+  "helper_source": {
+    "revision": "8a6ca0357df40d273a5d9b6ff420993a0d986d0b",
+    "module_path": "lib/modules/microg.py",
+    "module_sha256": "8213b0657c71ff9a2872bcad69170fd4585737a39e7822333b075fe46f215437",
+    "lock_path": "locks/microg-v0.3.17.252432.json",
+    "lock_sha256": "ccfbf8be10bdd3b444b2eed596778a015d138f595fb50f450e730050155eb87d"
+  },
+  "framework_source": {
+    "repository": "LineageOS/android_frameworks_base",
+    "revision": "1df617a1093e41562fd1f43f27de0cfb4af817e5",
+    "files": {
+      "AndroidManifest.xml": "a662a4dc5a21d85fb1b0f52a2e020347bc0894bae07fc22453bef4e6ff6125ed",
+      "MicrogUtils.java": "c52987315799d22a5278d80d9a96229beaeb39656a9aedb06963d7e1f21ddc55",
+      "AppIdPermissionPolicy.kt": "73184247909eb358b26059cb01400254712f0308131393da8d6bd79abe360821",
+      "PackageAbiHelperImpl.java": "c4a4229e0631d417e4af967c5f9410683a67d88a50626fd2b48a8650d1014420"
+    }
+  },
+  "apks": [
+    {
+      "file": "com.google.android.gms-252432034.apk",
+      "release_asset_id": 597925448,
+      "bytes": 108113833,
+      "sha256": "e5e6cba078bdec812b5450599350e5c1a12c8b7438da5bf77123af170f8c1a35",
+      "lock_size_hash_match": true,
+      "package": "com.google.android.gms",
+      "version_code": 252432034,
+      "version_name": "0.3.17.252432",
+      "min_sdk": 19,
+      "target_sdk": 29,
+      "compile_sdk": 35,
+      "extract_native_libs": true,
+      "multi_arch": true,
+      "signer_count": 1,
+      "signer_sha256": "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165",
+      "signatures": {
+        "v1": true,
+        "v2": true,
+        "v3": false,
+        "v3.1": false,
+        "v4": false
+      },
+      "uses_permissions": 65,
+      "core_active_privileged_count": 14,
+      "unaccounted_core_privileged": [],
+      "fake_signature_matches_framework": true,
+      "fake_signature_der_sha256": "f0fd6c5b410f25cb25c3b53346c8972fae30f8ee7411df910480ad6b2d60db83",
+      "native_libraries": 24,
+      "helper_native_extraction": {
+        "accepted": true,
+        "native_count": 24,
+        "instruction_set_counts": {
+          "arm": 6,
+          "arm64": 6,
+          "x86": 6,
+          "x86_64": 6
+        },
+        "hashes_match_apk": true
+      },
+      "output_sha256": {
+        "signature": "684e8640d5c3646967b69cdf3d5fcb40bde160b029011c535e74b9753a49c733",
+        "badging": "b4ead6f0ab471f1794c5128749f1c88aa652d5e0baed1beb9a467c7c6a0fdd72",
+        "manifest-tree": "57e841042827d1ee5dbb52d3151235d0470c62ea80cc44bbda3f41d06d530316",
+        "resources": "57bc5cf787ea9a99a800f901d6e60ca64c51e793d282cafb6d77bf8d3e5ba177"
+      }
+    },
+    {
+      "file": "com.android.vending-84022634.apk",
+      "release_asset_id": 597925318,
+      "bytes": 4210169,
+      "sha256": "9b8616011cc8f026bcbbe094df850794abb9d6d9f23214d7a8f8c4d1033ea012",
+      "lock_size_hash_match": true,
+      "package": "com.android.vending",
+      "version_code": 84022634,
+      "version_name": "0.3.17.40226",
+      "min_sdk": 19,
+      "target_sdk": 29,
+      "compile_sdk": 35,
+      "extract_native_libs": true,
+      "multi_arch": false,
+      "signer_count": 1,
+      "signer_sha256": "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165",
+      "signatures": {
+        "v1": true,
+        "v2": true,
+        "v3": false,
+        "v3.1": false,
+        "v4": false
+      },
+      "uses_permissions": 20,
+      "core_active_privileged_count": 3,
+      "unaccounted_core_privileged": [],
+      "fake_signature_matches_framework": true,
+      "fake_signature_der_sha256": "f0fd6c5b410f25cb25c3b53346c8972fae30f8ee7411df910480ad6b2d60db83",
+      "native_libraries": 0,
+      "helper_native_extraction": null,
+      "output_sha256": {
+        "signature": "4df9f06bcd36b69c7db194e39346795443e6fd59775040cb73a3f28ff3d4202e",
+        "badging": "501eb3182f24a875270a02470a0ad9fe539192bb64148d23d86448e8b657535c",
+        "manifest-tree": "c3e75ceabd906be83ef9994147f6fed6d5727316038c3503ba61e079da16f3f2",
+        "resources": "7869ea48b6673e2fb8ba9fbcae770c2653ce891b6ba4bef824df048ee1824d03"
+      }
+    }
+  ],
+  "complete_analysis": {
+    "sha256": "0bfc692510b093d43cf77704192c97879a5146019707f5553fd7d995bc429e91",
+    "filename": "manifest-permission-review.json",
+    "availability": "Noncommitted local audit output; digest records the review, not a required repository artifact. Exact public inputs and conclusions are recorded in this receipt."
+  },
+  "native_dynamic_libraries": {
+    "sha256": "0ec04a4827266f3904a9a0d1246756d7fe9860fba901d3be2fa39b08c0db381f",
+    "filename": "arm64-dynamic-libraries.json",
+    "availability": "Noncommitted local audit output; digest records the review, not a required repository artifact. Exact public inputs and conclusions are recorded in this receipt."
+  },
+  "adservices": {
+    "url": "https://android.googlesource.com/platform/packages/modules/AdServices/+/refs/tags/android-17.0.0_r1/adservices/apk/AndroidManifest.xml?format=TEXT",
+    "ref": "android-17.0.0_r1",
+    "sha256": "47e3f03e0a7f695803eefb432c5d08551d04ebcd228cde39694f22003990b5f0",
+    "definitions": {
+      "android.permission.ACCESS_ADSERVICES_TOPICS": {
+        "name": "android.permission.ACCESS_ADSERVICES_TOPICS",
+        "label": "@string/permlab_accessAdServicesTopics",
+        "description": "@string/permdesc_accessAdServicesTopics",
+        "protectionLevel": "normal"
+      },
+      "android.permission.ACCESS_ADSERVICES_ATTRIBUTION": {
+        "name": "android.permission.ACCESS_ADSERVICES_ATTRIBUTION",
+        "label": "@string/permlab_accessAdServicesAttribution",
+        "description": "@string/permdesc_accessAdServicesAttribution",
+        "protectionLevel": "normal"
+      },
+      "android.permission.ACCESS_ADSERVICES_AD_ID": {
+        "name": "android.permission.ACCESS_ADSERVICES_AD_ID",
+        "label": "@string/permlab_accessAdServicesAdId",
+        "description": "@string/permdesc_accessAdServicesAdId",
+        "protectionLevel": "normal"
+      }
+    },
+    "git_blob_sha1": "87bb160ebc76625cb84f271454b5e47aa1a58008"
+  },
+  "limits": [
+    "No device boot or app runtime test performed in this review.",
+    "Five of six ARM64 ELF libraries use 4096-byte PT_LOAD alignment; 16KiB kernel-page behavior remains unqualified.",
+    "Both APKs target SDK29; pregrants/appops and modern background behavior require device checks.",
+    "Lineage MicrogUtils spoofing additionally requires compile-time ANDROID_DEBUGGABLE.",
+    "Core privilege allowlist coverage does not establish runtime grants for signature-only or signature|appop permissions."
+  ],
+  "review_date_utc": "2026-11-07",
+  "qualification_base_helper_revision": "ced3d5245d6a039cd72632cdf1c12aff30733ddf",
+  "eligibility": {
+    "rom_family": "lineageos",
+    "api_levels": [
+      36,
+      37
+    ],
+    "rom_status": "experimental",
+    "rejected_api_examples": [
+      35,
+      38
+    ],
+    "rejected_rom_families": [
+      "grapheneos"
+    ],
+    "consumer_scope": "Existing ModOS pdx235 LineageOS 24.0 nightly restrictions remain separate and unchanged"
+  },
+  "sdk_binding": {
+    "field": "META-INF/com/android/metadata:post-sdk-level",
+    "input_order": "after existing source authentication, before module image unpack/mutation/injection",
+    "output_order": "after each output authentication, before success assets/report",
+    "rejects": [
+      "missing SDK",
+      "malformed SDK",
+      "mismatched profile SDK",
+      "duplicate ZIP metadata entries",
+      "duplicate metadata keys",
+      "metadata larger than 1 MiB"
+    ],
+    "limit": "Binds signed archive declared SDK; does not prove live runtime SDK properties or framework behavior"
+  },
+  "owner_evidence": {
+    "source": "https://github.com/0cwa/ModOS/blob/main/docs/pdx235-bootloop-20261017.md",
+    "repair_run": 39031144913,
+    "repaired_ota_sha256": "4ee1fbcb8594305ab518c48e1390a89551bff1fe8a177dfc7814b1576b10f223",
+    "observation": "Owner-reported successful rootless boot after DUMP-denial repair; subsequent publication resumption explicitly requested",
+    "unobserved": [
+      "post-repair ADB capture",
+      "complete microG functional checks",
+      "Magisk boot",
+      "subsequent OTA persistence"
+    ]
+  },
+  "local_regressions": {
+    "focused_test_file": "tests/test_microg_compatibility.py",
+    "focused_tests": 7,
+    "full_helper_suite_tests": 290,
+    "expected_skipped_candidate_classes": 2,
+    "status": "passed",
+    "note": "The required cross-lane wrapper separately runs 11 candidate tests without skips. Cryptographic ordering fixtures are synthetic; actual APK verification is recorded above."
+  },
+  "fresh_ota_qualification": "A new real paired OTA run is required for the current integrated source/tool/helper tuple; this source/APK receipt does not claim it already completed."
+}
