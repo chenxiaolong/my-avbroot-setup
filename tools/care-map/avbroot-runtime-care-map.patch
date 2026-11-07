@@ -1,0 +1,812 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 47867d1..610bf37 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -170,6 +170,7 @@ dependencies = [
+  "ruzstd",
+  "scrypt",
+  "serde",
++ "serde_json",
+  "sha1",
+  "sha2",
+  "system-properties",
+@@ -921,6 +922,12 @@ dependencies = [
+  "either",
+ ]
+ 
++[[package]]
++name = "itoa"
++version = "1.0.18"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
++
+ [[package]]
+ name = "keccak"
+ version = "0.2.2"
+@@ -1617,6 +1624,19 @@ dependencies = [
+  "syn 3.0.9",
+ ]
+ 
++[[package]]
++name = "serde_json"
++version = "1.0.154"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++dependencies = [
++ "itoa",
++ "memchr",
++ "serde",
++ "serde_core",
++ "zmij",
++]
++
+ [[package]]
+ name = "serde_spanned"
+ version = "1.1.2"
+@@ -2200,3 +2220,8 @@ name = "zlib-rs"
+ version = "0.6.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "b268e58e7c693d7c271f93ffc4ba3b380412554231c85bf61ca7af91042a4112"
++[[package]]
++name = "zmij"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/README.extra.md b/README.extra.md
+index 6f7a9bf..cfd3e73 100644
+--- a/README.extra.md
++++ b/README.extra.md
+@@ -467,3 +467,53 @@ avbroot zip info -i <input OTA>
+ This subcommand shows all of the OTA metadata fields. If both the modern protobuf metadata and the legacy plain text metadata exist, the protobuf metadata takes precedence.
+ 
+ (All of the `zip` subcommands show this information. This specific subcommand just does so without performing any other operation.)
++
++## External filesystem/runtime care-map proof (integration candidate)
++
++`avbroot ota patch --expected-care-map expected.pb` installs a protobuf care map
++provided by a caller that independently derives fingerprints from authenticated
++filesystem properties. `avbroot ota verify --expected-care-map expected.pb`
++requires exact normalized equality with the OTA map. These options replace only
++the legacy AVB-property fingerprint equality rule in verification; every OTA
++signature, payload signature, partition SHA-256 and applicable AVB verification
++check remains active. Patching retains its existing signing behavior and checks
++map safety against final payload operations; callers must verify the authenticated
++source before patching and verify the final signed result afterward. An expected
++map never turns a failed authentication check into success.
++
++The external map is a **trust input**, not proof of filesystem properties by
++itself. The helper must authenticate the source, re-extract actual output images,
++bind their hashes and sizes to the same successful verification invocation, and
++read the canonical runtime property from each filesystem. It must reject missing
++or mismatching properties. Calling `--expected-care-map` with an arbitrary map
++alone does not establish the runtime fingerprint identity.
++
++The engine requires every dynamic partition, unique names, exact
++`ro.<partition>.build.fingerprint` IDs, nonempty fingerprints and canonical,
++nonempty half-open ranges within AVB-protected data. Android uses 4096-byte
++care-map blocks; this interface currently requires 4096-byte payload blocks.
++Every cared block must be written by REPLACE, REPLACE_BZ, REPLACE_XZ or ZERO.
++Overlapping writes to cared blocks are rejected to avoid relying on operation
++execution order. DISCARD is permitted outside care ranges, but never inside them, even if an
++additional operation also writes the block. New allocations are supported when
++final payload writes prove coverage; source-range inclusion is not required.
++Expected-map patching fully recompresses modified images, including the implicit
++system OTA-certificate patch, rather than reusing sparse source operations.
++
++`avbroot ota verify --verification-report report.json` writes the schema
++`avbroot-ota-verification-v1` only after successful verification. The report
++contains all partition names, authenticated image SHA-256 and byte sizes, exact
++AVB hashtree protected byte sizes for required care-map partitions, and the list
++of required care-map partitions. `avb_headers` records names and flags of the
++verified vbmeta root and chained headers; final-output consumers must enforce
++their intended AVB policy, whereas authentic sources may carry disabled flags.
++The output must not already exist and is
++installed atomically. It is a local receipt, not a signed portable attestation;
++callers must keep it bound to the invocation and archive bytes they verified.
++Without `--expected-care-map`, existing AVB-derived care-map equality remains
++unchanged. Neither interface promotes production tool pins or publication policy.
++
++This candidate also closes an existing signer-trust gap: when a public key or
++key digest is explicitly required, an unsigned vbmeta header now fails instead
++of bypassing that trust comparison. Verification without a trust key retains
++the existing ability to inspect unsigned images.
+diff --git a/avbroot/Cargo.toml b/avbroot/Cargo.toml
+index 60af42b..1538b3e 100644
+--- a/avbroot/Cargo.toml
++++ b/avbroot/Cargo.toml
+@@ -50,6 +50,7 @@ rsa = { version = "0.10.0-rc.19", features = ["sha1", "sha2"] }
+ ruzstd = "0.9.0"
+ scrypt = { version = "0.12.0", features = ["phc"] }
+ serde = { version = "1.0.188", features = ["derive"] }
++serde_json = "1.0"
+ sha1 = "0.11.0"
+ sha2 = "0.11.0"
+ tempfile = "3.8.0"
+diff --git a/avbroot/src/cli/avb.rs b/avbroot/src/cli/avb.rs
+index 10da0ee..fcab08e 100644
+--- a/avbroot/src/cli/avb.rs
++++ b/avbroot/src/cli/avb.rs
+@@ -588,6 +588,9 @@ pub fn verify_headers(
+             warn!("{name} is signed with public AOSP test key");
+         }
+     } else {
++        if !matches!(trust_method, TrustMethod::Anything) {
++            bail!("{name} has an unsigned vbmeta header, but a trusted signing key is required");
++        }
+         info!("{name} has an unsigned vbmeta header");
+     }
+ 
+diff --git a/avbroot/src/cli/ota.rs b/avbroot/src/cli/ota.rs
+index 82145cb..4be4432 100644
+--- a/avbroot/src/cli/ota.rs
++++ b/avbroot/src/cli/ota.rs
+@@ -1020,6 +1020,7 @@ fn patch_ota_payload(
+     key_ota: &SigningPrivateKey,
+     cert_ota: &Certificate,
+     method: SigningMethod,
++    expected_care_map: Option<&CareMap>,
+     cancel_signal: &AtomicBool,
+ ) -> Result<(PayloadHeader, String, CareMap)> {
+     let mut header = PayloadHeader::from_reader(UserPosFile::new(payload))
+@@ -1144,7 +1145,7 @@ fn patch_ota_payload(
+ 
+     // Compute care map. For unmodified images still in the original payload,
+     // this only requires extracting the chunks containing the AVB metadata.
+-    let care_map = care_map::generate_care_map(
++    let mut care_map = care_map::generate_care_map(
+         payload,
+         input_files
+             .iter()
+@@ -1166,9 +1167,13 @@ fn patch_ota_payload(
+                 &name,
+                 &mut input_file.file,
+                 &mut header,
+-                // We can only perform the optimization of avoiding
+-                // recompression if the image came from the original payload.
+-                if let Some((system_target, system_ranges)) = &system_result {
++                // Expected runtime maps may care newly allocated blocks. Full
++                // recompression proves deterministic writes for modified images,
++                // including the implicit system OTA certificate patch.
++                // The legacy optimization is retained without an expected map.
++                if expected_care_map.is_none()
++                    && let Some((system_target, system_ranges)) = &system_result
++                {
+                     if name == *system_target && !external_images.contains_key(&name) {
+                         Some(system_ranges)
+                     } else {
+@@ -1185,6 +1190,13 @@ fn patch_ota_payload(
+         })
+         .collect::<Result<HashMap<_, _>>>()?;
+ 
++    if let Some(expected) = expected_care_map {
++        care_map::validate_expected(expected, &care_map, &header)
++            .context("Expected care map is unsafe for final payload")?;
++        care_map = expected.clone();
++        care_map::normalize(&mut care_map);
++    }
++
+     info!("Generating new OTA payload");
+ 
+     let mut payload_writer = PayloadWriter::new(writer, header.clone(), key_ota.clone(), method)
+@@ -1296,6 +1308,7 @@ fn patch_ota_zip(
+     key_ota: &SigningPrivateKey,
+     cert_ota: &Certificate,
+     method: SigningMethod,
++    expected_care_map: Option<&CareMap>,
+     cancel_signal: &AtomicBool,
+ ) -> Result<(OtaMetadata, u64)> {
+     struct InputEntry {
+@@ -1491,6 +1504,7 @@ fn patch_ota_zip(
+                     key_ota,
+                     cert_ota,
+                     method,
++                    expected_care_map,
+                     cancel_signal,
+                 )
+                 .with_context(|| format!("Failed to patch payload: {path}"))?;
+@@ -1620,6 +1634,15 @@ fn verify_partition_hashes(
+         let file =
+             File::open(&path).with_context(|| format!("Failed to open for reading: {path:?}"))?;
+ 
++        let expected_size = partition
++            .new_partition_info
++            .as_ref()
++            .and_then(|p| p.size)
++            .ok_or_else(|| anyhow!("Size not found for partition: {name}"))?;
++        if file.metadata()?.len() != expected_size {
++            bail!("Partition size does not match authenticated manifest: {name}");
++        }
++
+         let mut writer = HashingWriter::new(
+             io::sink(),
+             ring::digest::Context::new(&ring::digest::SHA256),
+@@ -1777,6 +1800,16 @@ pub fn patch_subcommand(cli: &PatchCli, cancel_signal: &AtomicBool) -> Result<()
+     };
+     let mut zip_writer = ZipArchiveWriter::new(signing_writer);
+ 
++    let expected_care_map = cli
++        .expected_care_map
++        .as_ref()
++        .map(|path| -> Result<CareMap> {
++            let mut map = care_map::parse(&fs::read(path)?)?;
++            care_map::normalize(&mut map);
++            Ok(map)
++        })
++        .transpose()?;
++
+     let (metadata, payload_metadata_size) = patch_ota_zip(
+         &raw_reader,
+         &zip_reader,
+@@ -1792,6 +1825,7 @@ pub fn patch_subcommand(cli: &PatchCli, cancel_signal: &AtomicBool) -> Result<()
+         &key_ota,
+         &cert_ota,
+         cli.signing_method,
++        expected_care_map.as_ref(),
+         cancel_signal,
+     )
+     .context("Failed to patch OTA zip")?;
+@@ -2132,6 +2166,11 @@ pub fn extract_subcommand(cli: &ExtractCli, cancel_signal: &AtomicBool) -> Resul
+ }
+ 
+ pub fn verify_subcommand(cli: &VerifyCli, cancel_signal: &AtomicBool) -> Result<()> {
++    if let Some(path) = &cli.verification_report {
++        if path.try_exists()? {
++            bail!("Verification report already exists: {path:?}");
++        }
++    }
+     let mut errors = 0;
+ 
+     macro_rules! fail_later {
+@@ -2335,14 +2374,27 @@ pub fn verify_subcommand(cli: &VerifyCli, cancel_signal: &AtomicBool) -> Result<
+         }
+     }
+ 
++    if cli.expected_care_map.is_some() && ota_info.care_map.is_none() {
++        fail_later!("Missing care map for expected-map verification");
++    }
++
+     if let Some(care_map) = &mut ota_info.care_map {
+         info!("Verifying care map");
+ 
+         care_map::normalize(care_map);
+ 
+-        let expected =
++        let bounds =
+             care_map::generate_care_map(&payload_reader, [], &ota_info.header, cancel_signal)
+-                .context("Failed to compute expected care map")?;
++                .context("Failed to compute care map AVB bounds")?;
++        let expected = if let Some(path) = &cli.expected_care_map {
++            let mut expected = care_map::parse(&fs::read(path)?)?;
++            care_map::normalize(&mut expected);
++            care_map::validate_expected(&expected, &bounds, &ota_info.header)
++                .context("Expected care map is unsafe for verified payload")?;
++            expected
++        } else {
++            bounds
++        };
+ 
+         if *care_map != expected {
+             fail_later!("Care map does not match:\nActual: {care_map:#?}\nExpected: {expected:#?}");
+@@ -2355,6 +2407,80 @@ pub fn verify_subcommand(cli: &VerifyCli, cancel_signal: &AtomicBool) -> Result<
+         bail!("Encountered {errors} error(s) during verification");
+     }
+ 
++    if let Some(path) = &cli.verification_report {
++        let required = ota_info
++            .header
++            .manifest
++            .dynamic_partition_metadata
++            .as_ref()
++            .map(|dpm| {
++                dpm.groups
++                    .iter()
++                    .flat_map(|g| g.partition_names.iter())
++                    .collect::<BTreeSet<_>>()
++            })
++            .unwrap_or_default();
++        let mut partitions = Vec::new();
++        for partition in &ota_info.header.manifest.partitions {
++            let info = partition.new_partition_info.as_ref().ok_or_else(|| {
++                anyhow!(
++                    "Missing authenticated partition info: {}",
++                    partition.partition_name
++                )
++            })?;
++            let size = info
++                .size
++                .ok_or_else(|| anyhow!("Missing authenticated partition size"))?;
++            let hash = info
++                .hash
++                .as_ref()
++                .filter(|hash| hash.len() == 32)
++                .ok_or_else(|| anyhow!("Missing authenticated partition SHA-256"))?;
++            let verity_data_size = if required.contains(&partition.partition_name) {
++                let image_path = util::path_join_single(
++                    temp_dir.path(),
++                    format!("{}.img", partition.partition_name),
++                )?;
++                let (header, _, _) = avb::load_image(&mut File::open(image_path)?)?;
++                match header.appended_descriptor()? {
++                    avb::AppendedDescriptorRef::HashTree(tree) => Some(tree.image_size),
++                    _ => bail!(
++                        "Required care-map image has no hashtree: {}",
++                        partition.partition_name
++                    ),
++                }
++            } else {
++                None
++            };
++            partitions.push(serde_json::json!({
++                "name": partition.partition_name, "image_size": size,
++                "image_sha256": hex::encode(hash), "verity_data_size": verity_data_size,
++            }));
++        }
++        // `seen` contains only the vbmeta root and chained headers visited by
++        // successful recursive signature verification above. Report their flags
++        // so callers can distinguish authentic source policy from final output
++        // policy without weakening source authentication.
++        let mut avb_headers = Vec::new();
++        for name in seen.iter().collect::<BTreeSet<_>>() {
++            let image_path = util::path_join_single(temp_dir.path(), format!("{name}.img"))?;
++            let (header, _, _) = avb::load_image(&mut File::open(image_path)?)?;
++            avb_headers.push(serde_json::json!({ "name": name, "flags": header.flags }));
++        }
++        let report = serde_json::json!({
++            "schema": "avbroot-ota-verification-v1", "partitions": partitions,
++            "required_care_map_partitions": required, "avb_headers": avb_headers,
++        });
++        let parent = path
++            .parent()
++            .filter(|p| !p.as_os_str().is_empty())
++            .unwrap_or(Path::new("."));
++        let mut output = NamedTempFile::new_in(parent)?;
++        serde_json::to_writer_pretty(&mut output, &report)?;
++        output.write_all(b"\n")?;
++        output.persist_noclobber(path)?;
++    }
++
+     Ok(())
+ }
+ 
+@@ -2441,6 +2567,11 @@ pub struct RootGroup {
+ /// Patch a full OTA.
+ #[derive(Debug, Parser)]
+ pub struct PatchCli {
++    /// Expected protobuf care map, independently proven from filesystem properties.
++    /// Replaces only AVB-property equality; signatures, hashes and safe writes remain required.
++    #[arg(long, value_name = "FILE", value_parser)]
++    pub expected_care_map: Option<PathBuf>,
++
+     /// Patch to original OTA zip.
+     #[arg(short, long, value_name = "FILE", value_parser, help_heading = HEADING_PATH)]
+     pub input: PathBuf,
+@@ -2741,6 +2872,16 @@ pub struct ExtractCli {
+ /// This includes both the whole-file signature and the payload signature.
+ #[derive(Debug, Parser)]
+ pub struct VerifyCli {
++    /// Write authenticated image hashes and AVB extents after all checks succeed.
++    /// The destination must not already exist.
++    #[arg(long, value_name = "FILE", value_parser)]
++    pub verification_report: Option<PathBuf>,
++
++    /// Expected protobuf care map, independently proven from filesystem properties.
++    /// Replaces only AVB-property equality; signatures, hashes and safe writes remain required.
++    #[arg(long, value_name = "FILE", value_parser)]
++    pub expected_care_map: Option<PathBuf>,
++
+     /// Path to OTA zip.
+     #[arg(short, long, value_name = "FILE", value_parser)]
+     pub input: PathBuf,
+diff --git a/avbroot/src/format/care_map.rs b/avbroot/src/format/care_map.rs
+index d8f6508..ba74add 100644
+--- a/avbroot/src/format/care_map.rs
++++ b/avbroot/src/format/care_map.rs
+@@ -3,7 +3,7 @@
+ 
+ use std::{
+     cmp::Ordering,
+-    collections::HashMap,
++    collections::{HashMap, HashSet},
+     io::{self, Read, Seek, SeekFrom, Write},
+     sync::atomic::AtomicBool,
+ };
+@@ -18,12 +18,17 @@ use crate::{
+         avb::{self, AppendedDescriptorRef, Descriptor},
+         payload::{self, PayloadHeader},
+     },
+-    protobuf::recovery_update_verifier::{CareMap, care_map::PartitionInfo},
++    protobuf::{
++        chromeos_update_engine::install_operation::Type,
++        recovery_update_verifier::{CareMap, care_map::PartitionInfo},
++    },
+     stream::{ReadAt, ReadSeek, UserPosFile},
+ };
+ 
+ #[derive(Debug, Error)]
+ pub enum Error {
++    #[error("Invalid expected care map: {0}")]
++    InvalidExpected(String),
+     #[error("Partition not found in payload: {0}")]
+     MissingPartition(String),
+     #[error("No hash tree descriptor found in AVB header: {0}")]
+@@ -326,6 +331,174 @@ pub fn generate_care_map<'name, 'file>(
+     Ok(care_map)
+ }
+ 
++/// Parse Android half-open block ranges without accepting ambiguous spellings.
++pub fn parse_ranges(value: &str) -> Result<Vec<std::ops::Range<u64>>> {
++    let values = value
++        .split(',')
++        .map(|v| {
++            if v.is_empty()
++                || !v.bytes().all(|b| b.is_ascii_digit())
++                || (v.len() > 1 && v.starts_with('0'))
++            {
++                return Err(Error::InvalidExpected("Noncanonical range integer".into()));
++            }
++            v.parse::<u64>()
++                .map_err(|_| Error::InvalidExpected("Range integer overflow".into()))
++        })
++        .collect::<Result<Vec<_>>>()?;
++    if values.len() < 3 || values[0] != (values.len() - 1) as u64 || values[0] % 2 != 0 {
++        return Err(Error::InvalidExpected(
++            "Invalid or empty range count".into(),
++        ));
++    }
++    let mut result = Vec::new();
++    let mut previous_end = 0;
++    for pair in values[1..].chunks_exact(2) {
++        if pair[0] >= pair[1] || pair[0] < previous_end {
++            return Err(Error::InvalidExpected(
++                "Empty, overlapping or unsorted ranges".into(),
++            ));
++        }
++        result.push(pair[0]..pair[1]);
++        previous_end = pair[1];
++    }
++    Ok(result)
++}
++
++/// Validate an externally proven filesystem/runtime map against AVB-derived
++/// bounds and the payload's actual deterministic writes. This deliberately does
++/// not infer runtime fingerprints from AVB properties. The caller must prove
++/// filesystem identities separately; this function never disables authentication.
++pub fn validate_expected(
++    expected: &CareMap,
++    bounds: &CareMap,
++    header: &PayloadHeader,
++) -> Result<()> {
++    // Android update_verifier interprets care-map blocks as 4096-byte blocks.
++    if header.manifest.block_size() != 4096 {
++        return Err(Error::InvalidExpected(
++            "Unsupported care-map block size".into(),
++        ));
++    }
++    if expected.partitions.is_empty() || expected.partitions.len() != bounds.partitions.len() {
++        return Err(Error::InvalidExpected("Missing required partitions".into()));
++    }
++    let mut seen = HashSet::new();
++    for entry in &expected.partitions {
++        if !seen.insert(&entry.name) {
++            return Err(Error::InvalidExpected(format!(
++                "Duplicate partition: {}",
++                entry.name
++            )));
++        }
++        let bound = bounds
++            .partitions
++            .iter()
++            .find(|p| p.name == entry.name)
++            .ok_or_else(|| {
++                Error::InvalidExpected(format!("Unexpected partition: {}", entry.name))
++            })?;
++        if entry.id != format!("ro.{}.build.fingerprint", entry.name)
++            || entry.fingerprint.is_empty()
++            || entry.fingerprint == "unknown"
++        {
++            return Err(Error::InvalidExpected(format!(
++                "Invalid runtime identity: {}",
++                entry.name
++            )));
++        }
++        let limits = parse_ranges(&bound.ranges)?;
++        let ranges = parse_ranges(&entry.ranges)?;
++        let max_block = limits.last().unwrap().end;
++        if ranges.iter().any(|r| r.end > max_block) {
++            return Err(Error::InvalidExpected(format!(
++                "Ranges exceed AVB-protected data: {}",
++                entry.name
++            )));
++        }
++        let partition = header
++            .manifest
++            .partitions
++            .iter()
++            .find(|p| p.partition_name == entry.name)
++            .ok_or_else(|| Error::MissingPartition(entry.name.clone()))?;
++        let image_size = partition
++            .new_partition_info
++            .as_ref()
++            .and_then(|p| p.size)
++            .ok_or_else(|| Error::InvalidExpected("Missing partition size".into()))?;
++        let mut writes = Vec::new();
++        for operation in &partition.operations {
++            let deterministic = matches!(
++                Type::try_from(operation.r#type),
++                Ok(Type::Replace | Type::ReplaceBz | Type::ReplaceXz | Type::Zero)
++            );
++            for extent in &operation.dst_extents {
++                let start = extent
++                    .start_block
++                    .ok_or_else(|| Error::InvalidExpected("Missing extent start".into()))?;
++                let end = start
++                    .checked_add(
++                        extent
++                            .num_blocks
++                            .ok_or_else(|| Error::InvalidExpected("Missing extent count".into()))?,
++                    )
++                    .ok_or_else(|| Error::InvalidExpected("Extent overflow".into()))?;
++                if end
++                    .checked_mul(u64::from(header.manifest.block_size()))
++                    .is_none_or(|size| size > image_size)
++                {
++                    return Err(Error::InvalidExpected("Operation outside partition".into()));
++                }
++                if !deterministic && ranges.iter().any(|r| r.start < end && start < r.end) {
++                    return Err(Error::InvalidExpected(format!(
++                        "Nondeterministic cared blocks: {}",
++                        entry.name
++                    )));
++                }
++                if deterministic {
++                    writes.push(start..end);
++                }
++            }
++        }
++        writes.sort_by_key(|r| r.start);
++        let mut previous_end = 0;
++        for write in &writes {
++            let overlap_end = previous_end.min(write.end);
++            if ranges.iter().any(|range| {
++                range.start < overlap_end && write.start < range.end && write.start < overlap_end
++            }) {
++                return Err(Error::InvalidExpected(format!(
++                    "Overlapping cared writes: {}",
++                    entry.name
++                )));
++            }
++            previous_end = previous_end.max(write.end);
++        }
++        for range in ranges {
++            let mut cursor = range.start;
++            for write in &writes {
++                if write.start > cursor {
++                    break;
++                }
++                if write.end > cursor {
++                    cursor = write.end;
++                }
++                if cursor >= range.end {
++                    break;
++                }
++            }
++            if cursor < range.end {
++                return Err(Error::InvalidExpected(format!(
++                    "Unwritten cared blocks: {}",
++                    entry.name
++                )));
++            }
++        }
++    }
++    Ok(())
++}
++
+ /// Ensure that the care map is in normalized form so that the output is
+ /// reproducible regardless of the original sort order.
+ pub fn normalize(care_map: &mut CareMap) {
+diff --git a/avbroot/src/format/hashtree.rs b/avbroot/src/format/hashtree.rs
+index ba54dfc..ebb9f55 100644
+--- a/avbroot/src/format/hashtree.rs
++++ b/avbroot/src/format/hashtree.rs
+@@ -698,7 +698,7 @@ mod tests {
+                 0xae, 0x1e, 0x00, 0xa3
+             ],
+         );
+-        assert_eq!(hash_tree_data, &[]);
++        assert!(hash_tree_data.is_empty());
+ 
+         // Try larger input that spans multiple blocks are results in an actual
+         // hash tree being created.
+diff --git a/avbroot/tests/avb.rs b/avbroot/tests/avb.rs
+index 3c88971..c76afb7 100644
+--- a/avbroot/tests/avb.rs
++++ b/avbroot/tests/avb.rs
+@@ -637,3 +637,51 @@ fn corrupted_root_image() {
+         }
+     }
+ }
++
++#[test]
++fn unsigned_header_cannot_satisfy_explicit_signer_trust() {
++    use avbroot::cli::avb::{ImageOpener, TrustMethod, verify_headers};
++    use std::collections::{HashMap, HashSet};
++    let directory = tempfile::tempdir().unwrap();
++    let header = Header {
++        required_libavb_version_major: 1,
++        required_libavb_version_minor: 0,
++        algorithm_type: AlgorithmType::None,
++        hash: vec![],
++        signature: vec![],
++        public_key: vec![],
++        public_key_metadata: vec![],
++        descriptors: vec![],
++        rollback_index: 0,
++        flags: 0,
++        rollback_index_location: 0,
++        release_string: String::new(),
++        reserved: [0; 80],
++    };
++    let mut image = std::fs::File::create(directory.path().join("vbmeta.img")).unwrap();
++    avb::write_root_image(&mut image, &header, 4096).unwrap();
++    let opener = ImageOpener::with_dir(directory.path());
++    verify_headers(
++        &opener,
++        "vbmeta",
++        &TrustMethod::Anything,
++        &mut HashSet::new(),
++        &mut HashMap::new(),
++    )
++    .unwrap();
++    for trust in [
++        TrustMethod::KeyDigest([0; 32]),
++        TrustMethod::Key(get_test_key_rsa().to_public_key()),
++    ] {
++        assert!(
++            verify_headers(
++                &opener,
++                "vbmeta",
++                &trust,
++                &mut HashSet::new(),
++                &mut HashMap::new()
++            )
++            .is_err()
++        );
++    }
++}
+diff --git a/avbroot/tests/care_map_expected.rs b/avbroot/tests/care_map_expected.rs
+new file mode 100644
+index 0000000..1119acf
+--- /dev/null
++++ b/avbroot/tests/care_map_expected.rs
+@@ -0,0 +1,131 @@
++// SPDX-License-Identifier: GPL-3.0-only
++//! Independent range-policy boundary tests. Authentication is tested separately.
++use avbroot::{
++    format::{care_map::validate_expected, payload::PayloadHeader},
++    protobuf::{
++        chromeos_update_engine::{
++            DeltaArchiveManifest, Extent, InstallOperation, PartitionInfo as PayloadPartitionInfo,
++            PartitionUpdate, install_operation::Type,
++        },
++        recovery_update_verifier::{CareMap, care_map::PartitionInfo},
++    },
++};
++
++fn map(ranges: &str) -> CareMap {
++    CareMap {
++        partitions: vec![PartitionInfo {
++            name: "system".into(),
++            ranges: ranges.into(),
++            id: "ro.system.build.fingerprint".into(),
++            fingerprint: "runtime/filesystem/fingerprint".into(),
++        }],
++        ..Default::default()
++    }
++}
++
++fn op(kind: Type, start: u64, blocks: u64) -> InstallOperation {
++    InstallOperation {
++        r#type: kind as i32,
++        dst_extents: vec![Extent {
++            start_block: Some(start),
++            num_blocks: Some(blocks),
++        }],
++        ..Default::default()
++    }
++}
++
++fn header(operations: Vec<InstallOperation>) -> PayloadHeader {
++    PayloadHeader {
++        version: 2,
++        metadata_signature_size: 0,
++        blob_offset: 0,
++        manifest: DeltaArchiveManifest {
++            block_size: Some(4096),
++            partitions: vec![PartitionUpdate {
++                partition_name: "system".into(),
++                operations,
++                new_partition_info: Some(PayloadPartitionInfo {
++                    size: Some(10 * 4096),
++                    hash: Some(vec![0; 32]),
++                }),
++                ..Default::default()
++            }],
++            ..Default::default()
++        },
++    }
++}
++
++#[test]
++fn deterministic_new_allocations_can_expand_beyond_original_sparse_map() {
++    // Source cared only blocks 0..2 and 4..6. A modified-image REPLACE_XZ
++    // writes every final data block, allowing new APK data in former holes.
++    let payload = header(vec![op(Type::ReplaceXz, 0, 8)]);
++    validate_expected(&map("2,0,8"), &map("2,0,8"), &payload).unwrap();
++}
++
++#[test]
++fn authenticated_sparse_holes_can_remain_uncared() {
++    let payload = header(vec![
++        op(Type::Replace, 0, 2),
++        op(Type::Discard, 2, 2),
++        op(Type::Zero, 4, 4),
++    ]);
++    validate_expected(&map("4,0,2,4,8"), &map("2,0,8"), &payload).unwrap();
++    assert!(validate_expected(&map("2,0,8"), &map("2,0,8"), &payload).is_err());
++}
++
++#[test]
++fn a_gap_or_source_dependent_write_cannot_become_cared() {
++    for operations in [
++        vec![op(Type::ReplaceXz, 0, 3), op(Type::Zero, 4, 4)],
++        vec![op(Type::Replace, 0, 4), op(Type::SourceCopy, 4, 4)],
++        vec![op(Type::Replace, 0, 8), op(Type::Discard, 4, 1)],
++        vec![op(Type::Replace, 0, 8), op(Type::ReplaceXz, 4, 1)],
++    ] {
++        assert!(validate_expected(&map("2,0,8"), &map("2,0,8"), &header(operations)).is_err());
++    }
++}
++
++#[test]
++fn trailer_and_wrong_runtime_property_are_rejected() {
++    let payload = header(vec![op(Type::ReplaceXz, 0, 10)]);
++    assert!(validate_expected(&map("2,0,9"), &map("2,0,8"), &payload).is_err());
++    let mut wrong = map("2,0,8");
++    wrong.partitions[0].id = "ro.product.build.fingerprint".into();
++    assert!(validate_expected(&wrong, &map("2,0,8"), &payload).is_err());
++    wrong = map("2,0,8");
++    wrong.partitions[0].fingerprint = "unknown".into();
++    assert!(validate_expected(&wrong, &map("2,0,8"), &payload).is_err());
++}
++
++#[test]
++fn omission_duplicate_and_unknown_partition_are_rejected() {
++    let payload = header(vec![op(Type::Replace, 0, 8)]);
++    let bound = map("2,0,8");
++    let mut bad = bound.clone();
++    bad.partitions.clear();
++    assert!(validate_expected(&bad, &bound, &payload).is_err());
++    bad = bound.clone();
++    bad.partitions.push(bad.partitions[0].clone());
++    assert!(validate_expected(&bad, &bound, &payload).is_err());
++    bad = bound.clone();
++    bad.partitions[0].name = "product".into();
++    assert!(validate_expected(&bad, &bound, &payload).is_err());
++}
++
++#[test]
++fn malformed_ranges_and_invalid_extent_units_are_rejected() {
++    let payload = header(vec![op(Type::ReplaceXz, 0, 8)]);
++    for ranges in ["0", "4,0,3,2,6", "2,0,03", "2,0,18446744073709551616"] {
++        assert!(validate_expected(&map(ranges), &map("2,0,8"), &payload).is_err());
++    }
++    let mut unknown = payload.clone();
++    unknown.manifest.partitions[0].operations[0].r#type = 999;
++    assert!(validate_expected(&map("2,0,8"), &map("2,0,8"), &unknown).is_err());
++    let mut overflow = payload.clone();
++    overflow.manifest.partitions[0].operations[0].dst_extents[0].num_blocks = Some(u64::MAX);
++    assert!(validate_expected(&map("2,0,8"), &map("2,0,8"), &overflow).is_err());
++    let mut wrong_units = payload.clone();
++    wrong_units.manifest.block_size = Some(8192);
++    assert!(validate_expected(&map("2,0,8"), &map("2,0,8"), &wrong_units).is_err());
++}

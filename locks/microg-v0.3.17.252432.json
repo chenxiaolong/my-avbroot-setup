@@ -1,0 +1,55 @@
+{
+  "modules": [
+    {
+      "artifacts": [
+        {
+          "allowed_origins": [
+            "https://github.com",
+            "https://release-assets.githubusercontent.com"
+          ],
+          "apk": {
+            "package_name": "com.android.vending",
+            "signer_sha256": "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165",
+            "version_code": 84022634
+          },
+          "archive": null,
+          "id": "companion-apk",
+          "immutable_url": "https://github.com/microg/GmsCore/releases/download/v0.3.17.252432/com.android.vending-84022634.apk",
+          "kind": "apk",
+          "legal": null,
+          "role": "injection-input",
+          "sha256": "9b8616011cc8f026bcbbe094df850794abb9d6d9f23214d7a8f8c4d1033ea012",
+          "size": 4210169,
+          "source": null,
+          "source_verification": null,
+          "version": "84022634"
+        },
+        {
+          "allowed_origins": [
+            "https://github.com",
+            "https://release-assets.githubusercontent.com"
+          ],
+          "apk": {
+            "package_name": "com.google.android.gms",
+            "signer_sha256": "9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165",
+            "version_code": 252432034
+          },
+          "archive": null,
+          "id": "gmscore-apk",
+          "immutable_url": "https://github.com/microg/GmsCore/releases/download/v0.3.17.252432/com.google.android.gms-252432034.apk",
+          "kind": "apk",
+          "legal": null,
+          "role": "injection-input",
+          "sha256": "e5e6cba078bdec812b5450599350e5c1a12c8b7438da5bf77123af170f8c1a35",
+          "size": 108113833,
+          "source": null,
+          "source_verification": null,
+          "version": "252432034"
+        }
+      ],
+      "id": "microg",
+      "version": "v0.3.17.252432"
+    }
+  ],
+  "schema_version": 1
+}

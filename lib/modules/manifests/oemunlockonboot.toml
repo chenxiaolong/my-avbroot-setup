@@ -1,0 +1,22 @@
+schema_version = 1
+id = 'oemunlockonboot'
+name = 'OEMUnlockOnBoot'
+status = 'supported'
+adapter = 'oemunlockonboot'
+default_enabled = false
+artifact_kinds = ['native-image-module-zip']
+dependencies = []
+conflicts = []
+warnings = []
+reasons = []
+
+[verification]
+schemes = ['ssh-signature']
+trusted_signers = ['ssh-ed25519-sha256:Ct0HoRyrFLrnF9W+A/BKEiJmwx7yWkgaW/JvghKrboA']
+digest_required = false
+enforced_by = 'adapter'
+
+[compatibility]
+rom_families = ['unknown']
+root_modes = ['unknown']
+architectures = ['unknown']

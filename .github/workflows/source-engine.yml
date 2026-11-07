@@ -1,0 +1,61 @@
+name: Guarded source engine
+on:
+  pull_request:
+    paths: ['tools/care-map/**', 'tests/test_dev_care_map_runner.py', '.github/workflows/source-engine.yml']
+  push:
+    branches: [master]
+    paths: ['tools/care-map/**', 'tests/test_dev_care_map_runner.py', '.github/workflows/source-engine.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/checkout@v7
+        with:
+          repository: 0cwa/ModOS
+          ref: a67455677ac524cb2e495b282701245f02857409
+          path: modos
+      - name: Install locked helper environment
+        run: |
+          python -m pip install --disable-pip-version-check uv
+          uv sync --frozen
+      - name: Verify guarded runner boundaries
+        env:
+          MODOS_REPO: ${{ github.workspace }}/modos
+        run: |
+          test -f "${MODOS_REPO}/src/bootstrap_archive.py"
+          uv run python -m unittest tests.test_dev_care_map_runner -v
+      - name: Build exact guarded source and run full upstream tests
+        run: |
+          mkdir -m 0700 .tmp modos/.tmp
+          uv run python tools/care-map/build_and_run.py \
+            --modos-repo "${GITHUB_WORKSPACE}/modos" \
+            --bootstrap-workdir "${GITHUB_WORKSPACE}/modos/.tmp/bootstrap" \
+            --build-workdir "${GITHUB_WORKSPACE}/.tmp/guarded-engine" \
+            --validate-source --prepare-only > .tmp/runner-prefix.json
+      - name: Execute freshly built engine through authenticated transport
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          data=json.loads(pathlib.Path('.tmp/runner-prefix.json').read_text())
+          version=subprocess.check_output(data+['avbroot','--version'],text=True).strip()
+          assert version=='avbroot 3.37.1', version
+          print(version)
+          pathlib.Path('.tmp/guarded-engine/LICENSE').write_bytes(pathlib.Path('LICENSE').read_bytes())
+          PY
+      - name: Retain source build receipt
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: guarded-source-engine
+          path: .tmp/guarded-engine
+          if-no-files-found: error
+          retention-days: 7

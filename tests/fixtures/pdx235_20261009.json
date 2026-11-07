@@ -1,0 +1,57 @@
+{
+  "schema": "modos.pdx235.care_map.evidence.v1",
+  "release": "lineage-23.2-20261009-nightly-pdx235-signed.zip",
+  "ota_sha256": "b2b4269738df1d3092de49bde6c7d0ffcb62ae19b342213a819187c30b7ab1f8",
+  "ota_size_bytes": 1232106897,
+  "care_map_sha256": "e903a2c0e4a71aaadf757d7d479a6be2ca80939a084c1832796db61c75e6e147",
+  "care_map_size_bytes": 1086,
+  "lineageos_pubkey_pem_sha256": "07ba6d6614f6c118bb448a662d0777d7cf894a4096490b5bd062566055125290",
+  "source_fingerprint": "Sony/XQ-DC72/XQ-DC72:15/68.2.A.3.107/068002A003010700521798587:user/release-keys",
+  "avb_v3_34_1_fingerprint": "Sony/lineage_pdx235/pdx235:16/BP4A.251205.006/9d767828e9:userdebug/release-keys",
+  "block_size": 4096,
+  "provenance": "Authenticated original OTA care_map.pb verified by independent LineageOS publisher signature and official API; ranges and avbroot-v3.34.1 reconstruction transcribed from ModOS Actions run 38003576753, job 114067106505. Original filesystem ro.<name>.build.fingerprint and AVB com.android.build.<name>.fingerprint independently confirmed in run 38181164127. Raw source care-map re-encoded to exact SHA-256; synthetic sparse extents are NOT copies of signed partition images. Exact per-partition original ext4 build.prop paths independently recovered from ModOS forensic GitHub Actions run 38181164127, job 114593834255.",
+  "partitions": [
+    {
+      "name": "odm",
+      "source_ranges": "2,0,472",
+      "avb_v3_34_1_ranges": "2,0,472",
+      "payload_image_sha256": "3364fade0f314f7598e6acd06dca65ae943bdfc5113ee42413753625d12b6497",
+      "original_filesystem_build_prop_path": "/etc/build.prop"
+    },
+    {
+      "name": "product",
+      "source_ranges": "18,0,46,511,32771,33279,65537,66045,98307,98815,130453,163840,163843,229376,229379,294912,294915,589824,589825",
+      "avb_v3_34_1_ranges": "2,0,616103",
+      "payload_image_sha256": "7d0d2327d3e0099fa19fc07f4d5a5ceb92c7807757d4b402a33989386226f2cd",
+      "original_filesystem_build_prop_path": "/etc/build.prop"
+    },
+    {
+      "name": "system",
+      "source_ranges": "20,0,212,489,32771,33257,65537,66023,98307,98793,131073,131559,163843,164329,196609,197095,229379,229865,255080,262144,262145",
+      "avb_v3_34_1_ranges": "2,0,278926",
+      "payload_image_sha256": "e47686704a35acb3a38f262227437e4e3be9f21ebb22e9646aa45a174f497985",
+      "original_filesystem_build_prop_path": "/system/build.prop"
+    },
+    {
+      "name": "system_ext",
+      "source_ranges": "12,0,240,430,32771,33198,65537,65964,98307,98734,112735,131072,131073",
+      "avb_v3_34_1_ranges": "2,0,136308",
+      "payload_image_sha256": "6435cd45daf483df3116ba899e257a44bb1b787dcf2936bd5ed31c1adc44901a",
+      "original_filesystem_build_prop_path": "/etc/build.prop"
+    },
+    {
+      "name": "vendor",
+      "source_ranges": "2,0,189386",
+      "avb_v3_34_1_ranges": "2,0,189386",
+      "payload_image_sha256": "5eac98c82259e7395418a569d87e3431eaa646563883257811e10deb27f7fb9a",
+      "original_filesystem_build_prop_path": "/build.prop"
+    },
+    {
+      "name": "vendor_dlkm",
+      "source_ranges": "2,0,6575",
+      "avb_v3_34_1_ranges": "2,0,6575",
+      "payload_image_sha256": "95fc33431bd257adcfc80c39079a49e8c17569d5cde3eb4e81ea6f083b1e4ba1",
+      "original_filesystem_build_prop_path": "/etc/build.prop"
+    }
+  ]
+}

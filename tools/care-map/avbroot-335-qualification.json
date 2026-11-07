@@ -1,0 +1,34 @@
+{
+  "base_commit": "4d678ffe8955de49403e593960626dfa48bd0cce",
+  "decision": "Retain official production lock; qualify existing guarded source path on3.35 before development-helper pin promotion.",
+  "guarded_source_additions_sha256": "2b045fe0998329b2dc2f6a6703174b2f4ab8b45aa67fed470252c8b0bc76b59c",
+  "guarded_source_additions_unchanged": true,
+  "official_binary_negative_check": "avb verify returns0 for unsigned header despite explicitly supplied expected public key; same verify_headers function used by ota verify",
+  "official_release": "v3.35.0",
+  "official_tag_github_verification": true,
+  "schema_version": 1,
+  "signed_upstream_tag": "53aff5d959be025996500d3aab6c37a37d1f9ccd",
+  "source_manifest": {
+    "base_commit": "4d678ffe8955de49403e593960626dfa48bd0cce",
+    "cargo_lock_sha256": "4025765ab99d4585b21adcf509ccf1b21f96df68d9e8349999fd4a203232b3f0",
+    "patch_sha256": "a5bfc9c90d14ea1c93efea6ec0376da97b0cdf17573b38a3fddcf44bb53f7265",
+    "repository": "https://github.com/chenxiaolong/avbroot.git",
+    "rust_toolchain": "1.99.0",
+    "schema": "avbroot-development-source-v1"
+  },
+  "validation_evidence": {
+    "diagnostic_binary_sha256": "06f2dadf67f818cd02baa04ec1ceea74cca6fa53cf038b3f96dbd81c544797b6",
+    "full_source_tests_and_sealed_transport_run": 38426169172,
+    "helper_tests_run": 38426168785,
+    "known_accepted_fixture_sha256": "ae8f13e057c3d4e5fa5b292dbce29ec85e5a314d3bf81f0a6adda4999aa5537e",
+    "known_fixture_result": "trusted OTA/payload/partition/AVB/recovery certificate and all six expected care-map partitions passed; both vbmeta flags zero",
+    "limitation": "Frozen previously accepted OTA regression; no new firmware or physical-device acceptance.",
+    "strict_counterchecks": [
+      "signed expected key accepted",
+      "wrong key rejected",
+      "unsigned explicit key rejected",
+      "tampered signed header rejected"
+    ],
+    "wrong_expected_fingerprint": "rejected; no success report emitted"
+  }
+}

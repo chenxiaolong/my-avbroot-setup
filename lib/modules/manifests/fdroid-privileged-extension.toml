@@ -1,0 +1,79 @@
+schema_version = 2
+id = 'fdroid-privileged-extension'
+name = 'F-Droid Privileged Extension'
+status = 'experimental'
+adapter = 'fdroid-privileged-extension'
+lifecycle = 'static-image'
+acknowledgement_required = false
+artifact_kinds = ['apk', 'recovery-flashable-zip', 'other']
+dependencies = []
+conflicts = []
+warnings = [
+    { code = 'physical-validation-required', severity = 'warning', message = 'Keep this module experimental until current Android 14, 15, and 16 Lineage targets pass physical-device and OTA persistence testing.' },
+]
+reasons = []
+
+[experimental_opt_in]
+required = true
+acknowledgement = 'I accept the F-Droid privileged-extension experimental policy for this exact artifact lock and output scope.'
+
+[defaults]
+helper_enabled = false
+pixene_profile_enabled = false
+
+[verification]
+schemes = ['sha256', 'jar-signature', 'openpgp-signature', 'apk-signature']
+digest_required = true
+enforced_by = 'adapter'
+
+[[verification.trust_roots]]
+type = 'x509-cert-sha256'
+value = '43238D512C1E5EB2D6569F4A3AFBF5523418B82E0A3ED1552770ABB9A9C9CCAB'
+
+[[verification.trust_roots]]
+type = 'openpgp-primary'
+value = '37D2C98789D8311948394E3E41E7044E1DBA2E89'
+
+[[verification.trust_roots]]
+type = 'openpgp-subkey'
+value = '802A9799016112346E1FEFF47A029E54DD5DCE7A'
+
+[[verification.trust_roots]]
+type = 'apk-signer-sha256'
+value = '43238D512C1E5EB2D6569F4A3AFBF5523418B82E0A3ED1552770ABB9A9C9CCAB'
+
+[compatibility]
+root_modes = ['rootless']
+architectures = ['any']
+
+[compatibility.roms.lineageos]
+status = 'experimental'
+reason = { code = 'physical-validation-pending', message = 'Physical-device Android 14, 15, and 16 Lineage validation is not complete.' }
+
+[compatibility.roms.grapheneos]
+status = 'experimental'
+reason = { code = 'graphene-validation-pending', message = 'GrapheneOS rootless static-image behavior remains to be validated on physical devices.' }
+
+[capabilities.requires]
+selective_signature_spoofing = false
+product_priv_app = false
+custom_init_selinux = false
+abis = ['any']
+min_api = 34
+max_api = 36
+
+[capabilities.provides]
+root = []
+zygisk = []
+selective_signature_spoofing = false
+product_priv_app = false
+custom_init_selinux = false
+
+[legal]
+license = 'Apache-2.0 AND GPL-3.0-or-later'
+source_url = 'https://f-droid.org/en/packages/org.fdroid.fdroid/'
+source_offer_required = true
+upstream_only_fetching = true
+local_only = true
+cache_policy = 'read-write'
+allowed_output_scopes = ['local-unpublished']

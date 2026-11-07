@@ -1,0 +1,66 @@
+schema_version = 2
+id = 'microg'
+name = 'microG Services'
+status = 'supported'
+adapter = 'microg'
+lifecycle = 'static-image'
+acknowledgement_required = false
+artifact_kinds = ['apk']
+dependencies = []
+conflicts = []
+warnings = []
+reasons = []
+
+[defaults]
+helper_enabled = false
+pixene_profile_enabled = false
+
+[verification]
+schemes = ['sha256', 'apk-signature']
+digest_required = true
+enforced_by = 'adapter'
+
+[[verification.trust_roots]]
+type = 'apk-signer-sha256'
+value = '9bd06727e62796c0130eb6dab39b73157451582cbd138e86c468acc395d14165'
+
+[compatibility]
+root_modes = ['rootless', 'rooted']
+architectures = ['any']
+
+[compatibility.roms.lineageos]
+status = 'experimental'
+reason = { code = 'lineage-api36-37-experimental', message = 'LineageOS API 36 and 37 are reviewed experimental build targets. API 37 has owner-reported repaired rootless boot; microG functional checks, Magisk boot and OTA persistence remain unverified.' }
+
+[compatibility.roms.grapheneos]
+status = 'incompatible'
+reason = { code = 'graphene-signature-model', message = 'GrapheneOS does not expose the restricted microG signature-spoofing contract used by this module.' }
+
+[capabilities.requires]
+selective_signature_spoofing = true
+product_priv_app = true
+custom_init_selinux = false
+abis = ['any']
+min_api = 36
+max_api = 37
+
+[capabilities.provides]
+root = []
+zygisk = []
+selective_signature_spoofing = false
+product_priv_app = false
+custom_init_selinux = false
+
+[legal]
+license = 'Apache-2.0'
+source_url = 'https://github.com/microg/GmsCore'
+source_offer_required = false
+upstream_only_fetching = true
+local_only = false
+cache_policy = 'read-write'
+allowed_output_scopes = ['local-unpublished', 'private', 'shared', 'published']
+
+[legal.permission_record]
+reference = 'Apache-2.0 Sections 2 and 4 redistribution grant'
+source_url = 'https://github.com/microg/GmsCore/blob/v0.3.17.252432/LICENSE'
+granted_scopes = ['shared', 'published']

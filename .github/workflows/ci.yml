@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python -m pip install --disable-pip-version-check uv
+
+      - name: Sync locked Python environment
+        run: uv sync --frozen
+
+      - name: Run unit tests
+        run: uv run python -m unittest discover -s tests -v
+
+      - name: Verify reviewed microG APKs against the official signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_signer="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          apk_analyzer="$(find "${ANDROID_HOME}/cmdline-tools" -type f -path '*/bin/apkanalyzer' | sort -V | tail -1)"
+          test -x "${apk_signer}"
+          test -x "${apk_analyzer}"
+          export PATH="$(dirname "${apk_signer}"):$(dirname "${apk_analyzer}"):${PATH}"
+          release="$(uv run python -c 'from lib.modules.microg import RELEASE; print(RELEASE)')"
+          uv run python tools/update_microg_lock.py --release "${release}" \
+            --cache "${RUNNER_TEMP}/microg-apks" --output "${RUNNER_TEMP}/microg-lock.json"
+          cmp "locks/microg-${release}.json" "${RUNNER_TEMP}/microg-lock.json"

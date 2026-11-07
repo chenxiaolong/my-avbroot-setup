@@ -1,0 +1,25 @@
+{
+  "schema": "avbroot-source-build-provenance-v1",
+  "upstream_repository": "https://github.com/chenxiaolong/avbroot",
+  "base_commit": "e805505affb042ed5ecb2e74cf5da3b465fb4e5d",
+  "implementation_commit": "6107d7e92c35b81cac0d28aec3806b45c8cb1f59",
+  "patch_sha256": "0af061a9494e72c66da58488e7c1a929b68d48a6d3f4d34e8847c4c4eabddff1",
+  "cargo_lock_sha256": "7c84757cb2442a032437e6352f63f0db1eed91a62333652c28426c91f50b203f",
+  "build_command": "cargo build --release --locked -p avbroot --no-default-features",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "binary_sha256": "81187e3eb8ed32ea73ce680d757e291df15320a0fc1ab9e5f21c16d9a682c7fe",
+  "status": "built_and_validated",
+  "scope": "local development provenance; not a production executable trust pin",
+  "validation": [
+    "Full upstream unit, existing integration and doctest suite passed before subsequent focused changes",
+    "Final AVB behavior suite: 6 passed, including explicit trust rejecting unsigned root header",
+    "Final independent expected-map suite: 6 passed",
+    "cargo fmt --all --check passed",
+    "patch applies to base with git apply --check"
+  ],
+  "additional_upstream_fix": "Explicit AVB key/digest trust now rejects unsigned vbmeta headers",
+  "binary_filename": "avbroot-6107d7e",
+  "binary_size": 12999104,
+  "version_output": "avbroot 3.34.1"
+}
